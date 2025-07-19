@@ -1,0 +1,19 @@
+// index.js
+require('dotenv').config();
+const express = require('express');
+
+const app = express();
+app.use(express.json());
+
+// --- CONNECT ROUTERS ---
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/items', require('./routes/items'));
+app.use('/api/events', require('./routes/events'));
+app.use('/api/bookings', require('./routes/bookings'));
+app.use('/api/maintenance', require('./routes/maintenance'));
+app.use('/api/audit', require('./routes/audit'));
+app.use('/api/dashboard', require('./routes/dashboard'));
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
