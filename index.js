@@ -14,6 +14,7 @@ app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/maintenance', require('./routes/maintenance'));
 app.use('/api/audit', require('./routes/audit'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/templates', require('./routes/templates'));
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Server started on port ${PORT}`));

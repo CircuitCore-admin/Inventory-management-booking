@@ -29,16 +29,40 @@ router.post('/', protect, adminOnly, async (req, res) => {
   }
 });
 
-// --- GET ALL ITEMS BOOKED FOR A SPECIFIC EVENT ---
-router.get('/event/:eventId', protect, async (req, res) => {
+// --- NEW: GET ALL BOOKINGS (with filtering by itemId or eventId) ---
+router.get('/', protect, async (req, res) => {
   try {
-    const query = `
-      SELECT i.item_id, i.name, i.category, i.unique_identifier 
-      FROM Inventory_Items i
-      JOIN Bookings b ON i.item_id = b.item_id
-      WHERE b.event_id = $1;
+    let query = `
+        SELECT 
+            b.booking_id, 
+            b.event_id, 
+            e.name as event_name, 
+            i.item_id, 
+            i.name as item_name
+        FROM Bookings b
+        JOIN Inventory_Items i ON b.item_id = i.item_id
+        JOIN Events e ON b.event_id = e.event_id
     `;
-    const { rows } = await db.query(query, [req.params.eventId]);
+    const params = [];
+    const conditions = [];
+
+    if (req.query.itemId) {
+      params.push(req.query.itemId);
+      conditions.push(`b.item_id = $${params.length}`);
+    }
+
+    if (req.query.eventId) {
+      params.push(req.query.eventId);
+      conditions.push(`b.event_id = $${params.length}`);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    query += ' ORDER BY b.created_at DESC';
+
+    const { rows } = await db.query(query, params);
     res.json(rows);
   } catch (err) {
     console.error(err.message);
