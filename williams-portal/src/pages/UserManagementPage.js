@@ -1,5 +1,5 @@
 // williams-portal/src/pages/UserManagementPage.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Import useRef
 import axios from 'axios';
 import {
   Box,
@@ -26,6 +26,7 @@ import {
   ModalFooter,
   ModalBody,
   ModalCloseButton,
+  FormErrorMessage,
 } from '@chakra-ui/react';
 
 const UserManagementPage = () => {
@@ -36,17 +37,13 @@ const UserManagementPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null); // User being edited
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const [createEmailError, setCreateEmailError] = useState('');
+  const emailCheckTimeoutRef = useRef(null); // Ref for debounce timeout
 
   const toast = useToast();
 
-  // Corrected: Memoize fetchUsers with useCallback or define it inside useEffect
-  // For simplicity, we'll define it inside useEffect, or use useCallback outside
-  // if it's referenced by other effects or event handlers often.
-  // For this scenario, defining inside useEffect or using useCallback is fine.
-  // Let's use useCallback for better practice if fetchUsers is involved in other places,
-  // otherwise, defining it inside useEffect is simpler.
-  // Given it's a utility for this component, wrapping in useCallback is a good approach.
   const fetchUsers = React.useCallback(async () => {
     try {
       setLoading(true);
@@ -67,14 +64,63 @@ const UserManagementPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]); // toast is a dependency of useCallback
+  }, [toast]);
 
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]); // <--- Added fetchUsers to the dependency array
+  }, [fetchUsers]);
+
+  // NEW: Handle email input change with debounce
+  const handleEmailChange = (e) => {
+    const newEmail = e.target.value;
+    setEmail(newEmail);
+    setCreateEmailError(''); // Clear error instantly when typing starts
+
+    if (emailCheckTimeoutRef.current) {
+      clearTimeout(emailCheckTimeoutRef.current);
+    }
+
+    // Only check if email is not empty and seems like a full address (contains @)
+    if (newEmail.length > 0 && newEmail.includes('@') && newEmail.includes('.')) {
+      emailCheckTimeoutRef.current = setTimeout(async () => {
+        try {
+          const response = await axios.get(`/api/users/check-email?email=${newEmail}`);
+          if (response.data.exists) {
+            setCreateEmailError(response.data.msg);
+          }
+        } catch (error) {
+          console.error('Error during real-time email check:', error);
+          // Optionally show a toast for network errors during check, but not for 400 status
+        }
+      }, 500); // Debounce for 500ms
+    }
+  };
+
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
+    setCreateEmailError(''); // Clear previous email error before new submission
+
+    // Perform final check before submission in case real-time check was too slow or bypassed
+    try {
+      const checkResponse = await axios.get(`/api/users/check-email?email=${email}`);
+      if (checkResponse.data.exists) {
+        setCreateEmailError(checkResponse.data.msg);
+        return; // Prevent form submission
+      }
+    } catch (error) {
+      console.error('Error during pre-submission email check:', error);
+      toast({
+        title: 'Validation Error.',
+        description: 'Could not perform final email validation. Please try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return; // Prevent form submission
+    }
+
+
     try {
       const token = localStorage.getItem('token');
       await axios.post(
@@ -96,21 +142,28 @@ const UserManagementPage = () => {
       setEmail('');
       setPassword('');
       setRole('event_team');
-      fetchUsers(); 
+      fetchUsers();
     } catch (error) {
       console.error('Failed to create user:', error);
-      toast({
-        title: 'Error creating user.',
-        description: error.response?.data?.msg || 'Could not add team member.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
+      const errorMessage = error.response?.data?.msg || 'Could not add team member.';
+
+      // Fallback: Check for specific duplicate email error from backend on submission
+      if (error.response?.status === 400 && errorMessage === 'User with this email already exists.') {
+        setCreateEmailError(errorMessage);
+      } else {
+        toast({
+          title: 'Error creating user.',
+          description: errorMessage,
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
     }
   };
 
   const handleEditUser = (user) => {
-    setCurrentUser({ ...user, password: '' }); // Load user data, clear password for security
+    setCurrentUser({ ...user, password: '' });
     setIsEditModalOpen(true);
   };
 
@@ -121,12 +174,11 @@ const UserManagementPage = () => {
     try {
       const token = localStorage.getItem('token');
       const updateData = {
-        fullName: currentUser.full_name, // Use full_name from state
+        fullName: currentUser.full_name,
         email: currentUser.email,
         role: currentUser.role,
       };
-      // Only include password if it's explicitly set for update
-      if (currentUser.password) { 
+      if (currentUser.password) {
         updateData.password = currentUser.password;
       }
 
@@ -145,7 +197,7 @@ const UserManagementPage = () => {
         isClosable: true,
       });
       setIsEditModalOpen(false);
-      fetchUsers(); // Re-fetch users to reflect changes
+      fetchUsers();
     } catch (error) {
       console.error('Failed to update user:', error);
       toast({
@@ -177,9 +229,15 @@ const UserManagementPage = () => {
           <FormLabel>Full Name</FormLabel>
           <Input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} />
         </FormControl>
-        <FormControl id="createEmail" mb={4} isRequired>
+        <FormControl id="createEmail" mb={4} isRequired isInvalid={!!createEmailError}>
           <FormLabel>Email</FormLabel>
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input 
+            type="email" 
+            value={email} 
+            onChange={handleEmailChange} // Use new handler
+            onBlur={handleEmailChange} // Also trigger on blur
+          />
+          {createEmailError && <FormErrorMessage>{createEmailError}</FormErrorMessage>}
         </FormControl>
         <FormControl id="createPassword" mb={4} isRequired>
           <FormLabel>Password</FormLabel>
