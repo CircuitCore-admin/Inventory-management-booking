@@ -31,7 +31,7 @@ router.post('/', protect, adminOnly, async (req, res) => {
   }
 });
 
-// NEW: Get all users (or filter by role)
+// GET all users (or filter by role)
 router.get('/', protect, authorize('admin', 'management'), async (req, res) => {
   const { role } = req.query;
   try {
@@ -52,7 +52,7 @@ router.get('/', protect, authorize('admin', 'management'), async (req, res) => {
   }
 });
 
-// NEW: Check if email already exists (for real-time validation)
+// Check if email already exists (for real-time validation)
 router.get('/check-email', async (req, res) => {
   const { email } = req.query;
   if (!email) {
@@ -71,7 +71,7 @@ router.get('/check-email', async (req, res) => {
   }
 });
 
-// NEW: Update a user by ID
+// Update a user by ID
 router.put('/:userId', protect, adminOnly, async (req, res) => {
   const { userId } = req.params;
   const { fullName, email, password, role } = req.body;
@@ -86,7 +86,6 @@ router.put('/:userId', protect, adminOnly, async (req, res) => {
       params.push(fullName);
     }
     if (email !== undefined) {
-      // Check for duplicate email if email is being updated and it's not the current user's email
       if (email) {
           const existingUserCheck = await db.query('SELECT user_id FROM Users WHERE email = $1 AND user_id != $2', [email, userId]);
           if (existingUserCheck.rows.length > 0) {
@@ -130,6 +129,49 @@ router.put('/:userId', protect, adminOnly, async (req, res) => {
     if (err.code === '23505') {
         return res.status(400).json({ msg: 'User with this email already exists.' });
     }
+    res.status(500).send('Server Error');
+  }
+});
+
+// NEW: Delete a user by ID with admin password confirmation
+router.delete('/:userId', protect, adminOnly, async (req, res) => {
+  const { userId } = req.params;
+  const { adminPassword } = req.body; // Password of the currently logged-in admin
+
+  if (!adminPassword) {
+    return res.status(400).json({ msg: 'Admin password is required for deletion.' });
+  }
+
+  try {
+    // 1. Verify the logged-in admin's password
+    const adminUserResult = await db.query('SELECT password_hash FROM Users WHERE user_id = $1', [req.user.id]);
+    if (adminUserResult.rows.length === 0) {
+      return res.status(404).json({ msg: 'Logged-in admin user not found.' });
+    }
+    const isMatch = await bcrypt.compare(adminPassword, adminUserResult.rows[0].password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ msg: 'Incorrect password for admin account.' });
+    }
+
+    // 2. Prevent admin from deleting their own account (optional, but good practice)
+    if (req.user.id === parseInt(userId, 10)) {
+        return res.status(400).json({ msg: 'Cannot delete your own account.' });
+    }
+
+    // 3. Delete the specified user
+    const deleteUserQuery = 'DELETE FROM Users WHERE user_id = $1 RETURNING user_id, full_name, email;';
+    const { rows } = await db.query(deleteUserQuery, [userId]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ msg: 'User not found.' });
+    }
+
+    const deletedUser = rows[0];
+    await logAction(req.user.id, 'user_deleted', { deletedUserId: deletedUser.user_id, deletedUserEmail: deletedUser.email, deletedUserName: deletedUser.full_name });
+
+    res.json({ msg: 'User deleted successfully', deletedUser: deletedUser });
+  } catch (err) {
+    console.error('Error deleting user:', err);
     res.status(500).send('Server Error');
   }
 });
