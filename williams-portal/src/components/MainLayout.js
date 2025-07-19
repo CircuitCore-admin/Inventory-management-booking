@@ -1,6 +1,5 @@
-// src/components/MainLayout.js
-
-import React from 'react';
+// williams-portal/src/components/MainLayout.js
+import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
@@ -11,18 +10,45 @@ import {
   Link,
   useColorModeValue,
 } from '@chakra-ui/react';
+import { jwtDecode } from 'jwt-decode'; // Corrected import for jwt-decode
 
 const MainLayout = () => {
   const navigate = useNavigate();
+  const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const decodedToken = jwtDecode(token);
+        setUserRole(decodedToken.user.role);
+      } catch (error) {
+        console.error('Failed to decode token:', error);
+        // Handle invalid token, e.g., log out user
+        localStorage.removeItem('token');
+        navigate('/login');
+      }
+    }
+  }, [navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('userRole'); // Clear user role on logout
     navigate('/login');
   };
 
   const menuItems = [
     { text: 'Dashboard', path: '/dashboard' },
     { text: 'Inventory', path: '/inventory' },
+    { text: 'Events', path: '/events' },
+    { text: 'Bookings', path: '/bookings' },
+    { text: 'Maintenance', path: '/maintenance' },
+    { text: 'Audit', path: '/audit' },
+    { text: 'Templates', path: '/templates' },
+  ];
+
+  const adminMenuItems = [
+    { text: 'User Management', path: '/users' },
   ];
 
   const sidebarBg = useColorModeValue('gray.100', 'gray.800');
@@ -48,6 +74,22 @@ const MainLayout = () => {
               {item.text}
             </Link>
           ))}
+          {userRole === 'admin' && ( // Conditionally render admin links
+            <>
+              {adminMenuItems.map((item) => (
+                <Link
+                  as={RouterLink}
+                  to={item.path}
+                  key={item.text}
+                  p={2}
+                  borderRadius="md"
+                  _hover={{ bg: sidebarHoverBg }}
+                >
+                  {item.text}
+                </Link>
+              ))}
+            </>
+          )}
         </VStack>
       </Box>
 

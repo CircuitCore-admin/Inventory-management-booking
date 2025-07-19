@@ -1,3 +1,4 @@
+// williams-portal/src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ChakraProvider, extendTheme, ColorModeScript } from '@chakra-ui/react';
@@ -7,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/MainLayout';
 import DashboardPage from './pages/DashboardPage';
 import InventoryPage from './pages/InventoryPage';
+import UserManagementPage from './pages/UserManagementPage'; // Import the new page
 
 const theme = extendTheme({
   config: {
@@ -26,6 +28,7 @@ function App() {
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
+              <Route path="/users" element={<UserManagementPage />} /> {/* Add the new route */}
               <Route path="/events" element={<div>Events Page</div>} />
               <Route path="/bookings" element={<div>Bookings Page</div>} />
               <Route path="/maintenance" element={<div>Maintenance Page</div>} />
