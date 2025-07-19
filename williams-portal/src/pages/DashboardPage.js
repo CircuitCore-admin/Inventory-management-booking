@@ -1,21 +1,12 @@
 // src/pages/DashboardPage.js
-
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import {
-  Box,
-  Heading,
-  SimpleGrid,
-  Spinner,
-  Stat,
-  StatLabel,
-  StatNumber,
-  useColorModeValue,
-} from '@chakra-ui/react';
+import { Box, Heading, SimpleGrid, Spinner } from '@chakra-ui/react';
+// CORRECTED: Import Stat components from their own package
+import { Stat, StatLabel, StatNumber } from '@chakra-ui/stat';
 
 const DashboardPage = () => {
   const [summary, setSummary] = useState(null);
-  const cardBg = useColorModeValue('white', 'gray.700');
 
   useEffect(() => {
     const fetchSummary = async () => {
@@ -43,21 +34,21 @@ const DashboardPage = () => {
 
   return (
     <Box>
-      <Heading mb={6}>Dashboard</Heading>
+      <Heading mb={4}>Dashboard</Heading>
       <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6}>
-        <Stat p={4} bg={cardBg} borderWidth="1px" borderRadius="lg" boxShadow="sm">
+        <Stat p={4} borderWidth="1px" borderRadius="lg">
           <StatLabel>Items in Repair</StatLabel>
           <StatNumber>{summary.items_in_repair}</StatNumber>
         </Stat>
-        <Stat p={4} bg={cardBg} borderWidth="1px" borderRadius="lg" boxShadow="sm">
+        <Stat p={4} borderWidth="1px" borderRadius="lg">
           <StatLabel>Available Items</StatLabel>
           <StatNumber>{summary.available_items}</StatNumber>
         </Stat>
-        <Stat p={4} bg={cardBg} borderWidth="1px" borderRadius="lg" boxShadow="sm">
+        <Stat p={4} borderWidth="1px" borderRadius="lg">
           <StatLabel>Upcoming Events</StatLabel>
           <StatNumber>{summary.upcoming_events}</StatNumber>
         </Stat>
-        <Stat p={4} bg={cardBg} borderWidth="1px" borderRadius="lg" boxShadow="sm">
+        <Stat p={4} borderWidth="1px" borderRadius="lg">
           <StatLabel>Open Tickets</StatLabel>
           <StatNumber>{summary.open_tickets}</StatNumber>
         </Stat>
