@@ -8,11 +8,34 @@ const db = require('../db');
 const { logAction } = require('../services/auditLog');
 const { protect, adminOnly } = require('../middleware/auth');
 
-// --- STANDARD USER LOGIN ---
 router.post('/login', async (req, res) => {
-    // ... (This route remains unchanged)
-});
+  const { email, password } = req.body;
+  try {
+    console.log(`[${new Date().toLocaleTimeString()}] 1. Login attempt for: ${email}`);
+    
+    const userQuery = 'SELECT * FROM Users WHERE email = $1';
+    const { rows } = await db.query(userQuery, [email]);
+    
+    console.log(`[${new Date().toLocaleTimeString()}] 2. Database query finished.`); // You will NOT see this message
 
+    if (rows.length === 0) return res.status(400).send('Invalid credentials.');
+    
+    const user = rows[0];
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) return res.status(400).send('Invalid credentials.');
+
+    await logAction(user.user_id, 'user_login', { email: user.email });
+
+    const payload = { user: { id: user.user_id, role: user.role } };
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
+      if (err) throw err;
+      res.json({ token });
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
+});
 // --- ADMIN GENERATES OTP FOR A CONTRACTOR ---
 router.post('/otp/generate', protect, adminOnly, async (req, res) => {
   // Now accepts a specific expiry timestamp from the date/time selector
