@@ -1,4 +1,4 @@
-// routes/items.js
+// williams-inventory/routes/items.js
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs'); // Assuming bcryptjs is used elsewhere
@@ -57,13 +57,13 @@ router.post('/scan', protect, authorize('admin', 'management', 'warehouse'), asy
 
 // --- CREATE NEW ITEM ---
 router.post('/', protect, adminOnly, async (req, res) => {
-  const { name, category, unique_identifier, purchase_cost, purchase_date } = req.body;
+  const { name, category, unique_identifier, purchase_cost, purchase_date, region } = req.body; // ADDED region
   try {
     const newIitemQuery = `
-      INSERT INTO Inventory_Items (name, category, unique_identifier, purchase_cost, purchase_date)
-      VALUES ($1, $2, $3, $4, $5) RETURNING *;
+      INSERT INTO Inventory_Items (name, category, unique_identifier, purchase_cost, purchase_date, region)
+      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
     `;
-    const { rows } = await db.query(newIitemQuery, [name, category, unique_identifier, purchase_cost, purchase_date]);
+    const { rows } = await db.query(newIitemQuery, [name, category, unique_identifier, purchase_cost, purchase_date, region]); // ADDED region
     
     await logAction(req.user.id, req.user.full_name, 'item_created', { itemId: rows[0].item_id, itemName: rows[0].name });
     
@@ -77,7 +77,7 @@ router.post('/', protect, adminOnly, async (req, res) => {
   }
 });
 
-// --- GET SINGLE ITEM BY ID ---
+// --- GET SINGLE ITEM BY ID --- (Now comes after /check-identifier)
 router.get('/:id', protect, async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM Inventory_Items WHERE item_id = $1', [req.params.id]);
@@ -94,7 +94,7 @@ router.get('/:id', protect, async (req, res) => {
 // --- UPDATE ITEM ---
 router.put('/:id', protect, adminOnly, async (req, res) => {
   try {
-    const { name, category, status, location, purchase_cost, purchase_date } = req.body;
+    const { name, category, status, location, purchase_cost, purchase_date, region } = req.body; // ADDED region
     const updateQuery = `
       UPDATE Inventory_Items SET 
         name = $1, 
@@ -102,10 +102,11 @@ router.put('/:id', protect, adminOnly, async (req, res) => {
         status = $3, 
         location = $4, 
         purchase_cost = $5,
-        purchase_date = $6
-      WHERE item_id = $7 RETURNING *;
+        purchase_date = $6,
+        region = $7 -- ADDED region here
+      WHERE item_id = $8 RETURNING *;
     `;
-    const { rows } = await db.query(updateQuery, [name, category, status, location, purchase_cost, purchase_date, req.params.id]);
+    const { rows } = await db.query(updateQuery, [name, category, status, location, purchase_cost, purchase_date, region, req.params.id]); // ADDED region
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Item not found' });
     }
@@ -132,7 +133,7 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
   }
 });
 
-// --- NEW: Generate QR Code for an Item ---
+// --- Generate QR Code for an Item --- (Also moved below /:id as it takes an itemId)
 router.get('/:itemId/qrcode', protect, async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -155,21 +156,18 @@ router.get('/:itemId/qrcode', protect, async (req, res) => {
   }
 });
 
-// --- NEW: Upload Media for an Item ---
-// `upload.single('file')` is the Multer middleware that processes the incoming file.
-// It expects the file input field in the frontend form to have `name="file"`.
-router.post('/:itemId/media', protect, upload.single('file'), async (req, res) => { // Corrected: use upload.single() here
+// --- Upload Media for an Item ---
+router.post('/:itemId/media', protect, upload.single('file'), async (req, res) => {
   try {
     const { itemId } = req.params;
     const { description, media_type } = req.body;
-    const file = req.file; // Multer makes the uploaded file available on req.file
+    const file = req.file;
 
     if (!file) {
       return res.status(400).json({ msg: 'No file uploaded.' });
     }
 
-    // mediaUrl should be relative to the public static directory
-    const mediaUrl = `/uploads/${file.filename}`; // This assumes /public/uploads is served as /uploads
+    const mediaUrl = `/uploads/${file.filename}`;
 
     const query = `
       INSERT INTO Item_Media (item_id, media_url, media_type, description, uploaded_by)
@@ -182,9 +180,7 @@ router.post('/:itemId/media', protect, upload.single('file'), async (req, res) =
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error('Error uploading media:', err);
-    // If an error occurs during file processing by Multer (e.g., file filter), err.message will contain it
     res.status(500).send(`Server Error: ${err.message || err}`);
-    // If file was successfully uploaded to disk but DB insert failed, attempt to clean up the file
     if (file && file.path) {
         fs.unlink(file.path, (unlinkErr) => {
             if (unlinkErr) console.error('Failed to clean up uploaded file:', unlinkErr);
@@ -193,7 +189,7 @@ router.post('/:itemId/media', protect, upload.single('file'), async (req, res) =
   }
 });
 
-// --- NEW: Get All Media for an Item ---
+// --- Get All Media for an Item ---
 router.get('/:itemId/media', protect, async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -206,27 +202,23 @@ router.get('/:itemId/media', protect, async (req, res) => {
   }
 });
 
-// --- NEW: Delete Item Media ---
+// --- Delete Item Media ---
 router.delete('/media/:mediaId', protect, adminOnly, async (req, res) => {
   try {
     const { mediaId } = req.params;
 
-    // Get file path to delete from disk
     const mediaResult = await db.query('SELECT media_url FROM Item_Media WHERE media_id = $1', [mediaId]);
     if (mediaResult.rows.length === 0) {
       return res.status(404).json({ msg: 'Media not found.' });
     }
     const mediaUrl = mediaResult.rows[0].media_url;
-    // Construct absolute file path
     const filePath = path.join(__dirname, '..', 'public', mediaUrl);
 
-    // Delete from database first
     const { rows } = await db.query('DELETE FROM Item_Media WHERE media_id = $1 RETURNING *;', [mediaId]);
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Media not found or already deleted.' });
     }
 
-    // Attempt to delete file from disk (non-blocking)
     fs.unlink(filePath, (err) => {
       if (err) {
         console.error(`Failed to delete file from disk: ${filePath}`, err);
@@ -242,6 +234,21 @@ router.delete('/media/:mediaId', protect, adminOnly, async (req, res) => {
     console.error('Error deleting media:', err);
     res.status(500).send('Server Error');
   }
+});
+
+// NEW: Check if unique identifier already exists - MUST BE BEFORE /:id routes
+router.get('/check-identifier', protect, async (req, res) => { // ADDED protect middleware here
+    const { identifier } = req.query;
+    if (!identifier) {
+        return res.status(400).json({ msg: 'Identifier query parameter is required.' });
+    }
+    try {
+        const { rows } = await db.query('SELECT 1 FROM Inventory_Items WHERE unique_identifier = $1', [identifier]);
+        res.json({ exists: rows.length > 0 });
+    } catch (err) {
+        console.error('Error checking identifier:', err);
+        res.status(500).send('Server Error');
+    }
 });
 
 module.exports = router;
