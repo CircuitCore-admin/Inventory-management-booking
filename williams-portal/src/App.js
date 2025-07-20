@@ -10,6 +10,8 @@ import DashboardPage from './pages/DashboardPage';
 import InventoryPage from './pages/InventoryPage';
 import UserManagementPage from './pages/UserManagementPage'; // Import UserManagementPage
 import EventsPage from './components/EventsPage'; // Import EventsPage for placeholder update
+import EventRequestPage from './pages/EventRequestPage';
+import EventApprovalPage from './pages/EventApprovalPage';
 
 const theme = extendTheme({
   config: {
@@ -29,8 +31,10 @@ function App() {
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/users" element={<UserManagementPage />} /> {/* User Management Route */}
-              <Route path="/events" element={<EventsPage />} /> {/* Events Page Route */}
+              <Route path="/users" element={<UserManagementPage />} />
+              <Route path="/events" element={<EventsPage />} /> 
+              <Route path="/request-event" element={<EventRequestPage />} /> 
+              <Route path="/approve-events" element={<EventApprovalPage />} />
               <Route path="/bookings" element={<div>Bookings Page</div>} />
               <Route path="/maintenance" element={<div>Maintenance Page</div>} />
               <Route path="/audit" element={<div>Audit Page</div>} />
