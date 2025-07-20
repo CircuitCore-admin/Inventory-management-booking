@@ -10,6 +10,41 @@ const QRCode = require('qrcode'); // Import qrcode library
 const path = require('path'); // For file paths
 const fs = require('fs'); // For file system operations
 
+// NEW: Check if unique identifier already exists - MUST BE BEFORE /:id routes
+router.get('/check-identifier', protect, async (req, res) => { // ADDED protect middleware here
+  const { identifier } = req.query;
+  if (!identifier) {
+    return res.status(400).json({ msg: 'Identifier query parameter is required.' });
+  }
+  try {
+    const { rows } = await db.query('SELECT 1 FROM Inventory_Items WHERE unique_identifier = $1', [identifier]);
+    res.json({ exists: rows.length > 0 });
+  } catch (err) {
+    console.error('Error checking identifier:', err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// NEW: Get count of items by region and category for identifier generation
+router.get('/by-region-category-count', protect, async (req, res) => {
+  const { region, category } = req.query;
+
+  if (!region || !category) {
+    return res.status(400).json({ msg: 'Region and category query parameters are required.' });
+  }
+
+  try {
+    const result = await db.query(
+      'SELECT COUNT(*) FROM Inventory_Items WHERE region = $1 AND category = $2',
+      [region, category]
+    );
+    res.json({ count: result.rows[0].count });
+  } catch (err) {
+    console.error('Error fetching region-category count:', err);
+    res.status(500).json({ error: 'Database query failed' });
+  }
+});
+
 // --- GET ALL ITEMS ---
 router.get('/', protect, async (req, res) => {
   try {
@@ -27,7 +62,7 @@ router.post('/scan', protect, authorize('admin', 'management', 'warehouse'), asy
   try {
     const itemResult = await db.query('SELECT * FROM Inventory_Items WHERE unique_identifier = $1', [unique_identifier]);
     if (itemResult.rows.length === 0) return res.status(404).json({ msg: 'Item with this identifier not found.' });
-    
+
     const item = itemResult.rows[0];
     let newStatus = item.status, newLocation = item.location;
 
@@ -45,9 +80,9 @@ router.post('/scan', protect, authorize('admin', 'management', 'warehouse'), asy
 
     const updateQuery = 'UPDATE Inventory_Items SET status = $1, location = $2 WHERE item_id = $3 RETURNING *;';
     const { rows } = await db.query(updateQuery, [newStatus, newLocation, item.item_id]);
-    
+
     await logAction(req.user.id, req.user.full_name, 'item_scanned', { itemId: item.item_id, action, newStatus });
-    
+
     res.json(rows[0]);
   } catch (err) {
     console.error(err.message);
@@ -64,14 +99,14 @@ router.post('/', protect, adminOnly, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
     `;
     const { rows } = await db.query(newIitemQuery, [name, category, unique_identifier, purchase_cost, purchase_date, region]); // ADDED region
-    
+
     await logAction(req.user.id, req.user.full_name, 'item_created', { itemId: rows[0].item_id, itemName: rows[0].name });
-    
+
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err.message);
     if (err.code === '23505') { // unique_identifier already exists
-        return res.status(400).json({ msg: 'Item with this unique identifier already exists.' });
+      return res.status(400).json({ msg: 'Item with this unique identifier already exists.' });
     }
     res.status(500).send('Server Error');
   }
@@ -182,9 +217,9 @@ router.post('/:itemId/media', protect, upload.single('file'), async (req, res) =
     console.error('Error uploading media:', err);
     res.status(500).send(`Server Error: ${err.message || err}`);
     if (file && file.path) {
-        fs.unlink(file.path, (unlinkErr) => {
-            if (unlinkErr) console.error('Failed to clean up uploaded file:', unlinkErr);
-        });
+      fs.unlink(file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Failed to clean up uploaded file:', unlinkErr);
+      });
     }
   }
 });
@@ -236,19 +271,5 @@ router.delete('/media/:mediaId', protect, adminOnly, async (req, res) => {
   }
 });
 
-// NEW: Check if unique identifier already exists - MUST BE BEFORE /:id routes
-router.get('/check-identifier', protect, async (req, res) => { // ADDED protect middleware here
-    const { identifier } = req.query;
-    if (!identifier) {
-        return res.status(400).json({ msg: 'Identifier query parameter is required.' });
-    }
-    try {
-        const { rows } = await db.query('SELECT 1 FROM Inventory_Items WHERE unique_identifier = $1', [identifier]);
-        res.json({ exists: rows.length > 0 });
-    } catch (err) {
-        console.error('Error checking identifier:', err);
-        res.status(500).send('Server Error');
-    }
-});
 
 module.exports = router;
