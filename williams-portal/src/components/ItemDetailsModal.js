@@ -1,4 +1,3 @@
-// src/components/ItemDetailsModal.js
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
@@ -22,18 +21,21 @@ import {
   Spinner,
 } from '@chakra-ui/react';
 
+// Base URL for backend files, assuming 'public/uploads' is served from root
+// const BACKEND_BASE_URL = 'http://localhost:3001'; // <-- FIXED THIS LINE: Changed from 3000 to 3001
+
 const ItemDetailsModal = ({ isOpen, onClose, item }) => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [itemMedia, setItemMedia] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState(null);
-  const [mediaType, setMediaType] = useState('image'); // 'image' or 'manual'
+  const [mediaType, setMediaType] = useState('image');
   const [mediaDescription, setMediaDescription] = useState('');
   const [loadingMedia, setLoadingMedia] = useState(true);
   const [qrLoading, setQrLoading] = useState(true);
 
   // Base URL for backend files, assuming 'public/uploads' is served from root
-  const BACKEND_BASE_URL = 'http://localhost:3000'; // Adjust if your backend is on a different port/domain
+  const BACKEND_BASE_URL = 'http://localhost:3001'; // Adjust if your backend is on a different port/domain
 
   const fetchQrCode = useCallback(async () => {
     if (!item?.item_id) {

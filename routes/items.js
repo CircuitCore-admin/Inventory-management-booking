@@ -4,8 +4,11 @@ const router = express.Router();
 const bcrypt = require('bcryptjs'); // Assuming bcryptjs is used elsewhere
 const db = require('../db');
 const { protect, adminOnly, authorize } = require('../middleware/auth');
-const upload = require('../middleware/upload'); // Assuming this middleware handles file uploads
+const upload = require('../middleware/upload'); // Now 'upload' is the Multer instance
 const { logAction } = require('../services/auditLog');
+const QRCode = require('qrcode'); // Import qrcode library
+const path = require('path'); // For file paths
+const fs = require('fs'); // For file system operations
 
 // --- GET ALL ITEMS ---
 router.get('/', protect, async (req, res) => {
@@ -91,7 +94,6 @@ router.get('/:id', protect, async (req, res) => {
 // --- UPDATE ITEM ---
 router.put('/:id', protect, adminOnly, async (req, res) => {
   try {
-    // FIXED: Added purchase_date to destructuring and update query
     const { name, category, status, location, purchase_cost, purchase_date } = req.body;
     const updateQuery = `
       UPDATE Inventory_Items SET 
@@ -100,7 +102,7 @@ router.put('/:id', protect, adminOnly, async (req, res) => {
         status = $3, 
         location = $4, 
         purchase_cost = $5,
-        purchase_date = $6  -- FIXED: Added purchase_date here
+        purchase_date = $6
       WHERE item_id = $7 RETURNING *;
     `;
     const { rows } = await db.query(updateQuery, [name, category, status, location, purchase_cost, purchase_date, req.params.id]);
@@ -126,6 +128,118 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
     res.json({ msg: `Item '${rows[0].name}' deleted successfully.` });
   } catch (err) {
     console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// --- NEW: Generate QR Code for an Item ---
+router.get('/:itemId/qrcode', protect, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const itemResult = await db.query('SELECT unique_identifier, name FROM Inventory_Items WHERE item_id = $1', [itemId]);
+
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ msg: 'Item not found.' });
+    }
+
+    const { unique_identifier, name } = itemResult.rows[0];
+    const qrData = `Item: ${name}, ID: ${itemId}, Unique Identifier: ${unique_identifier}`; // Data to encode in QR code
+
+    // Generate QR code as a data URL (PNG)
+    const qrCodeDataUrl = await QRCode.toDataURL(qrData);
+
+    res.json({ qrCodeDataUrl });
+  } catch (err) {
+    console.error('Error generating QR code:', err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// --- NEW: Upload Media for an Item ---
+// `upload.single('file')` is the Multer middleware that processes the incoming file.
+// It expects the file input field in the frontend form to have `name="file"`.
+router.post('/:itemId/media', protect, upload.single('file'), async (req, res) => { // Corrected: use upload.single() here
+  try {
+    const { itemId } = req.params;
+    const { description, media_type } = req.body;
+    const file = req.file; // Multer makes the uploaded file available on req.file
+
+    if (!file) {
+      return res.status(400).json({ msg: 'No file uploaded.' });
+    }
+
+    // mediaUrl should be relative to the public static directory
+    const mediaUrl = `/uploads/${file.filename}`; // This assumes /public/uploads is served as /uploads
+
+    const query = `
+      INSERT INTO Item_Media (item_id, media_url, media_type, description, uploaded_by)
+      VALUES ($1, $2, $3, $4, $5) RETURNING *;
+    `;
+    const { rows } = await db.query(query, [itemId, mediaUrl, media_type, description, req.user.id]);
+
+    await logAction(req.user.id, req.user.full_name, 'item_media_uploaded', { itemId, mediaId: rows[0].media_id, mediaType: media_type, filename: file.filename });
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Error uploading media:', err);
+    // If an error occurs during file processing by Multer (e.g., file filter), err.message will contain it
+    res.status(500).send(`Server Error: ${err.message || err}`);
+    // If file was successfully uploaded to disk but DB insert failed, attempt to clean up the file
+    if (file && file.path) {
+        fs.unlink(file.path, (unlinkErr) => {
+            if (unlinkErr) console.error('Failed to clean up uploaded file:', unlinkErr);
+        });
+    }
+  }
+});
+
+// --- NEW: Get All Media for an Item ---
+router.get('/:itemId/media', protect, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const query = 'SELECT media_id, item_id, media_url, media_type, description, uploaded_at FROM Item_Media WHERE item_id = $1 ORDER BY uploaded_at DESC;';
+    const { rows } = await db.query(query, [itemId]);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching item media:', err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// --- NEW: Delete Item Media ---
+router.delete('/media/:mediaId', protect, adminOnly, async (req, res) => {
+  try {
+    const { mediaId } = req.params;
+
+    // Get file path to delete from disk
+    const mediaResult = await db.query('SELECT media_url FROM Item_Media WHERE media_id = $1', [mediaId]);
+    if (mediaResult.rows.length === 0) {
+      return res.status(404).json({ msg: 'Media not found.' });
+    }
+    const mediaUrl = mediaResult.rows[0].media_url;
+    // Construct absolute file path
+    const filePath = path.join(__dirname, '..', 'public', mediaUrl);
+
+    // Delete from database first
+    const { rows } = await db.query('DELETE FROM Item_Media WHERE media_id = $1 RETURNING *;', [mediaId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ msg: 'Media not found or already deleted.' });
+    }
+
+    // Attempt to delete file from disk (non-blocking)
+    fs.unlink(filePath, (err) => {
+      if (err) {
+        console.error(`Failed to delete file from disk: ${filePath}`, err);
+      } else {
+        console.log(`Deleted file from disk: ${filePath}`);
+      }
+    });
+
+    await logAction(req.user.id, req.user.full_name, 'item_media_deleted', { mediaId, mediaUrl });
+
+    res.json({ msg: 'Media deleted successfully.' });
+  } catch (err) {
+    console.error('Error deleting media:', err);
     res.status(500).send('Server Error');
   }
 });
