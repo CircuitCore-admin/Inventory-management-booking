@@ -31,10 +31,8 @@ router.post('/', protect, adminOnly, async (req, res) => {
   }
 });
 
-// GET all users (or filter by role and active status) - Modified to include is_active
 // GET all users (or filter by role and active status)
-// Changed to adminOnly if only Admins should see the full user list
-router.get('/', protect, adminOnly, async (req, res) => { // CHANGED authorize to adminOnly
+router.get('/', protect, authorize('admin', 'management'), async (req, res) => {
   const { role, includeInactive } = req.query; // includeInactive can be 'true' to show all
   try {
     let query = 'SELECT user_id, full_name, email, role, is_active FROM Users'; // Explicitly select is_active

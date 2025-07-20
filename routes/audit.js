@@ -1,10 +1,9 @@
-// williams-inventory/routes/audit.js
+// routes/audit.js
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { protect, adminOnly } = require('../middleware/auth');
 
-// Keep audit logs as adminOnly for raw access
 router.get('/', protect, adminOnly, async (req, res) => {
     try {
         const query = `

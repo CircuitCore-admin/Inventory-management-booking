@@ -16,7 +16,7 @@ import {
   useColorModeValue,
   useDisclosure,
 } from '@chakra-ui/react';
-import OtpManagementModal from './OtpManagementModal'; // Import the new modal
+import OtpManagementModal from '../components/OtpManagementModal'; // Import the new modal
 
 const EventsPage = () => {
   const [events, setEvents] = useState([]);

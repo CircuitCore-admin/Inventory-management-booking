@@ -19,7 +19,7 @@ router.get('/', protect, authorize('admin', 'management', 'event_team', 'warehou
 });
 
 // --- CREATE NEW EVENT ---
-router.post('/', protect, adminOnly, async (req, res) => { // Keep adminOnly for event creation
+router.post('/', protect, adminOnly, async (req, res) => { // Kept adminOnly for event creation
   const { name, location, start_date, end_date } = req.body;
   try {
     const newEventQuery = `INSERT INTO Events (name, location, start_date, end_date) VALUES ($1, $2, $3, $4) RETURNING *;`;
@@ -71,9 +71,8 @@ router.put('/:id', protect, adminOnly, async (req, res) => { // Kept adminOnly
 router.delete('/:id', protect, adminOnly, async (req, res) => { // Kept adminOnly
   try {
     // If you want to strictly keep related bookings/etc. when an event is deleted,
-    // and not have FKs (similar to users), you would remove the FK.
-    // If you want ON DELETE SET NULL, you would alter the FK.
-    // For now, assuming DELETE actually deletes.
+    // you would need to adjust the foreign key constraints to ON DELETE SET NULL for event_id in Bookings.
+    // However, usually deleting an event should cascade to its bookings.
     const { rows } = await db.query('DELETE FROM Events WHERE event_id = $1 RETURNING *', [req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Event not found' });

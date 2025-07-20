@@ -1,7 +1,6 @@
 // routes/items.js
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs'); // Assuming bcryptjs is used elsewhere
 const db = require('../db');
 const { protect, adminOnly, authorize } = require('../middleware/auth');
 const upload = require('../middleware/upload'); // Assuming this middleware handles file uploads
@@ -43,6 +42,7 @@ router.post('/scan', protect, authorize('admin', 'management', 'warehouse'), asy
     const updateQuery = 'UPDATE Inventory_Items SET status = $1, location = $2 WHERE item_id = $3 RETURNING *;';
     const { rows } = await db.query(updateQuery, [newStatus, newLocation, item.item_id]);
     
+    // UPDATED CALL: Pass req.user.full_name
     await logAction(req.user.id, req.user.full_name, 'item_scanned', { itemId: item.item_id, action, newStatus });
     
     res.json(rows[0]);
@@ -62,6 +62,7 @@ router.post('/', protect, adminOnly, async (req, res) => {
     `;
     const { rows } = await db.query(newIitemQuery, [name, category, unique_identifier, purchase_cost, purchase_date]);
     
+    // UPDATED CALL: Pass req.user.full_name
     await logAction(req.user.id, req.user.full_name, 'item_created', { itemId: rows[0].item_id, itemName: rows[0].name });
     
     res.status(201).json(rows[0]);
@@ -91,22 +92,16 @@ router.get('/:id', protect, async (req, res) => {
 // --- UPDATE ITEM ---
 router.put('/:id', protect, adminOnly, async (req, res) => {
   try {
-    // FIXED: Added purchase_date to destructuring and update query
-    const { name, category, status, location, purchase_cost, purchase_date } = req.body;
+    const { name, category, status, location, purchase_cost } = req.body;
     const updateQuery = `
-      UPDATE Inventory_Items SET 
-        name = $1, 
-        category = $2, 
-        status = $3, 
-        location = $4, 
-        purchase_cost = $5,
-        purchase_date = $6  -- FIXED: Added purchase_date here
-      WHERE item_id = $7 RETURNING *;
+      UPDATE Inventory_Items SET name = $1, category = $2, status = $3, location = $4, purchase_cost = $5
+      WHERE item_id = $6 RETURNING *;
     `;
-    const { rows } = await db.query(updateQuery, [name, category, status, location, purchase_cost, purchase_date, req.params.id]);
+    const { rows } = await db.query(updateQuery, [name, category, status, location, purchase_cost, req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Item not found' });
     }
+    // UPDATED CALL: Pass req.user.full_name
     await logAction(req.user.id, req.user.full_name, 'item_updated', { itemId: req.params.id, itemName: rows[0].name });
     res.json(rows[0]);
   } catch (err) {
@@ -118,10 +113,14 @@ router.put('/:id', protect, adminOnly, async (req, res) => {
 // --- DELETE ITEM ---
 router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
+    // If Item_Media or Bookings have ON DELETE RESTRICT for item_id,
+    // this will fail if any media or bookings are linked.
+    // If you always want to delete related media/bookings, ensure ON DELETE CASCADE.
     const { rows } = await db.query('DELETE FROM Inventory_Items WHERE item_id = $1 RETURNING *', [req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Item not found' });
     }
+    // UPDATED CALL: Pass req.user.full_name
     await logAction(req.user.id, req.user.full_name, 'item_deleted', { itemId: req.params.id, itemName: rows[0].name });
     res.json({ msg: `Item '${rows[0].name}' deleted successfully.` });
   } catch (err) {
