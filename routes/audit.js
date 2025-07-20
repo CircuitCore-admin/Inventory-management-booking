@@ -1,14 +1,23 @@
-// services/auditLog.js
+// routes/audit.js
+const express = require('express');
+const router = express.Router();
 const db = require('../db');
+const { protect, adminOnly } = require('../middleware/auth');
 
-// Modify logAction to accept actorFullName
-async function logAction(userId, actorFullName, action, details = {}) {
-  try {
-    const query = 'INSERT INTO Audit_Logs (user_id, actor_full_name, action, details) VALUES ($1, $2, $3, $4)';
-    await db.query(query, [userId, actorFullName, action, JSON.stringify(details)]);
-  } catch (err) {
-    console.error('Failed to write to audit log:', err);
-  }
-}
+router.get('/', protect, adminOnly, async (req, res) => {
+    try {
+        const query = `
+            SELECT a.log_id, a.action, a.details, a.created_at, u.full_name, u.email 
+            FROM Audit_Logs a
+            JOIN Users u ON a.user_id = u.user_id
+            ORDER BY a.created_at DESC;
+        `;
+        const { rows } = await db.query(query);
+        res.json(rows);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
 
-module.exports = { logAction };
+module.exports = router;
