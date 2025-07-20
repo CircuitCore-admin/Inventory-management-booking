@@ -41,7 +41,7 @@ import {
   Badge, // To show active status
 } from '@chakra-ui/react';
 import { TriangleUpIcon, TriangleDownIcon } from '@chakra-ui/icons';
-import { jwtDecode } from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode'; // Import jwtDecode to get current user ID
 
 // Helper function to format role names
 const formatRoleName = (role) => {
@@ -77,7 +77,7 @@ const UserManagementPage = () => {
   const [userToModify, setUserToModify] = useState(null); // User for disable/activate
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [targetStatus, setTargetStatus] = useState(null); // 'activate' or 'deactivate'
-  const cancelRef = useRef();
+  const cancelRef = useRef(); // For AlertDialog focus management
 
   const { isOpen: isCreateModalOpen, onOpen: onOpenCreateModal, onClose: onCloseCreateModal } = useDisclosure();
 
@@ -274,18 +274,17 @@ const UserManagementPage = () => {
         return;
       }
 
-      // MODIFIED: Removed 'response =' assignment as the variable was not explicitly used afterwards
       if (targetStatus === 'deactivate') {
-        await axios.delete(
+        await axios.delete( // Continue using DELETE for deactivation (backend will UPDATE)
           `/api/users/${userToModify.user_id}`,
           {
             headers: { 'x-auth-token': token },
-            data: { adminPassword: adminPasswordInput },
+            data: { adminPassword: adminPasswordInput }, // Send password in request body
           }
         );
       } else { // targetStatus === 'activate'
         await axios.put(
-          `/api/users/${userToModify.user_id}/activate`,
+          `/api/users/${userToModify.user_id}/activate`, // New endpoint for activation
           { adminPassword: adminPasswordInput },
           {
             headers: { 'x-auth-token': token },

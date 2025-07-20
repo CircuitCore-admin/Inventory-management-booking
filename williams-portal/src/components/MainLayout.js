@@ -9,12 +9,15 @@ import {
   VStack,
   Link,
   useColorModeValue,
+  Spacer, // Added Spacer for layout
+  Text, // Added Text for welcome message
 } from '@chakra-ui/react';
 import { jwtDecode } from 'jwt-decode'; // Corrected import for jwt-decode
 
 const MainLayout = () => {
   const navigate = useNavigate();
   const [userRole, setUserRole] = useState(null);
+  const [userFullName, setUserFullName] = useState('Guest'); // New state for full name
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -22,6 +25,7 @@ const MainLayout = () => {
       try {
         const decodedToken = jwtDecode(token);
         setUserRole(decodedToken.user.role);
+        setUserFullName(decodedToken.user.full_name || 'User'); // Get full_name from token
       } catch (error) {
         console.error('Failed to decode token:', error);
         // Handle invalid token, e.g., log out user
@@ -34,6 +38,7 @@ const MainLayout = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userRole'); // Clear user role on logout
+    // Also clear full_name if stored separately in local storage
     navigate('/login');
   };
 
@@ -95,7 +100,9 @@ const MainLayout = () => {
 
       {/* Main Content */}
       <Box flex="1" display="flex" flexDirection="column">
-        <Flex as="header" p={4} borderBottomWidth="1px" justifyContent="flex-end">
+        <Flex as="header" p={4} borderBottomWidth="1px" alignItems="center">
+          <Spacer /> {/* Pushes content to the right */}
+          <Text mr={4} fontWeight="bold">Welcome, {userFullName} ({userRole})</Text>
           <Button onClick={handleLogout} colorScheme="red" size="sm">
             Logout
           </Button>

@@ -8,7 +8,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/MainLayout';
 import DashboardPage from './pages/DashboardPage';
 import InventoryPage from './pages/InventoryPage';
-import UserManagementPage from './pages/UserManagementPage'; // Import the new page
+import UserManagementPage from './pages/UserManagementPage'; // Import UserManagementPage
+import EventsPage from './pages/EventsPage'; // Import EventsPage for placeholder update
 
 const theme = extendTheme({
   config: {
@@ -28,8 +29,8 @@ function App() {
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/users" element={<UserManagementPage />} /> {/* Add the new route */}
-              <Route path="/events" element={<div>Events Page</div>} />
+              <Route path="/users" element={<UserManagementPage />} /> {/* User Management Route */}
+              <Route path="/events" element={<EventsPage />} /> {/* Events Page Route */}
               <Route path="/bookings" element={<div>Bookings Page</div>} />
               <Route path="/maintenance" element={<div>Maintenance Page</div>} />
               <Route path="/audit" element={<div>Audit Page</div>} />

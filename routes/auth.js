@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto'); // Ensure crypto is available if OTP routes are in this file
+const crypto = require('crypto'); // Used for OTP generation
 const db = require('../db');
 const { logAction } = require('../services/auditLog');
 const { protect, adminOnly } = require('../middleware/auth'); // ensure protect and adminOnly are here if used by OTP routes
@@ -67,11 +67,12 @@ router.post('/otp/generate', protect, adminOnly, async (req, res) => {
   // Now accepts a specific expiry timestamp from the date/time selector
   const { userId, eventId, sessionExpiresAt } = req.body; 
   
+  // Generate a 6-digit random OTP
   const otp = crypto.randomInt(100000, 999999).toString();
   
   try {
     // Validate if the contractorUserId exists and has the 'contractor' role, and is active
-    const userResult = await db.query('SELECT role, is_active FROM Users WHERE user_id = $1', [userId]);
+    const userResult = await db.query('SELECT role, full_name, is_active FROM Users WHERE user_id = $1', [userId]);
     if (userResult.rows.length === 0 || userResult.rows[0].role !== 'contractor' || !userResult.rows[0].is_active) {
       return res.status(404).json({ msg: 'Contractor user not found or not active.' });
     }
@@ -90,7 +91,7 @@ router.post('/otp/generate', protect, adminOnly, async (req, res) => {
     await db.query(query, [userId, eventId, otpHash, otpExpiresAt, sessionExpiry]);
 
     // UPDATED CALL: logAction (req.user.full_name should be available from protect middleware)
-    await logAction(req.user.id, req.user.full_name, 'otp_generated', { otpUserId: userId, eventId });
+    await logAction(req.user.id, req.user.full_name, 'otp_generated', { otpUserId: userId, eventId, contractorName: userResult.rows[0].full_name });
 
     res.json({ otp });
   } catch (err) {
@@ -135,8 +136,8 @@ router.post('/otp/login', async (req, res) => {
       user: {
         id: user.user_id,
         role: user.role,
-        isOtpSession: true,
-        eventId: storedOtp.event_id,
+        isOtpSession: true, // Indicates this is an OTP session
+        eventId: storedOtp.event_id, // Event ID linked to OTP for restricted access
         full_name: user.full_name // Include full_name for OTP session
       },
     };

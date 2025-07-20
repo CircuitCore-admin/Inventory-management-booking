@@ -13,8 +13,8 @@ router.post('/', protect, adminOnly, async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
     const newUserQuery = `
-      INSERT INTO Users (full_name, email, password_hash, role, is_active)
-      VALUES ($1, $2, $3, $4, TRUE) RETURNING user_id, email, role, full_name, is_active;
+      INSERT INTO Users (full_name, email, password_hash, role, created_at, is_active)
+      VALUES ($1, $2, $3, $4, NOW(), TRUE) RETURNING user_id, email, role, full_name, is_active;
     `;
     const { rows } = await db.query(newUserQuery, [fullName, email, passwordHash, role]);
     const newUser = rows[0];
@@ -31,11 +31,11 @@ router.post('/', protect, adminOnly, async (req, res) => {
   }
 });
 
-// GET all users (or filter by role) - Modified to include is_active
+// GET all users (or filter by role and active status)
 router.get('/', protect, authorize('admin', 'management'), async (req, res) => {
-  const { role, includeInactive } = req.query; // New: includeInactive param
+  const { role, includeInactive } = req.query; // includeInactive can be 'true' to show all
   try {
-    let query = 'SELECT user_id, full_name, email, role, is_active FROM Users'; // ADDED is_active here
+    let query = 'SELECT user_id, full_name, email, role, is_active FROM Users'; // Explicitly select is_active
     const params = [];
 
     let whereClauses = [];
@@ -43,7 +43,7 @@ router.get('/', protect, authorize('admin', 'management'), async (req, res) => {
       whereClauses.push(`role = $${params.length + 1}`);
       params.push(role);
     }
-    // If includeInactive is not 'true', only show active users
+    // If includeInactive is not 'true' (i.e., it's undefined or 'false'), only show active users
     if (includeInactive !== 'true') {
         whereClauses.push(`is_active = TRUE`);
     }
@@ -69,7 +69,8 @@ router.get('/check-email', async (req, res) => {
   }
 
   try {
-    const { rows } = await db.query('SELECT 1 FROM Users WHERE email = $1 AND is_active = TRUE', [email]); // Check only active users
+    // Check only active users for duplication when creating new
+    const { rows } = await db.query('SELECT 1 FROM Users WHERE email = $1 AND is_active = TRUE', [email]);
     if (rows.length > 0) {
       return res.json({ exists: true, msg: 'Email address is already in use by an active account.' });
     }
@@ -80,10 +81,10 @@ router.get('/check-email', async (req, res) => {
   }
 });
 
-// Update a user by ID - Modified to include is_active
+// Update a user by ID
 router.put('/:userId', protect, adminOnly, async (req, res) => {
   const { userId } = req.params;
-  const { fullName, email, password, role, is_active } = req.body; // Added is_active
+  const { fullName, email, password, role, is_active } = req.body; // Added is_active to allow updating it
   
   try {
     let updateFields = [];
@@ -95,6 +96,7 @@ router.put('/:userId', protect, adminOnly, async (req, res) => {
       params.push(fullName);
     }
     if (email !== undefined) {
+      // Check for duplicate email if email is being updated and it's not the current user's email
       if (email) {
           const existingUserCheck = await db.query('SELECT user_id FROM Users WHERE email = $1 AND user_id != $2', [email, userId]);
           if (existingUserCheck.rows.length > 0) {
@@ -108,7 +110,7 @@ router.put('/:userId', protect, adminOnly, async (req, res) => {
       updateFields.push(`role = $${paramIndex++}`);
       params.push(role);
     }
-    if (password) {
+    if (password) { // Only hash and update password if a new password is provided
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(password, salt);
       updateFields.push(`password_hash = $${paramIndex++}`);
@@ -123,7 +125,7 @@ router.put('/:userId', protect, adminOnly, async (req, res) => {
       return res.status(400).json({ msg: 'No fields provided for update.' });
     }
 
-    params.push(userId);
+    params.push(userId); // Add userId for the WHERE clause
     const updateUserQuery = `
       UPDATE Users SET ${updateFields.join(', ')} WHERE user_id = $${paramIndex} RETURNING user_id, full_name, email, role, is_active;
     `;
@@ -139,7 +141,7 @@ router.put('/:userId', protect, adminOnly, async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     console.error('Error updating user:', err);
-    if (err.code === '23505') {
+    if (err.code === '23505') { // PostgreSQL unique violation error code
         return res.status(400).json({ msg: 'User with this email already exists.' });
     }
     res.status(500).send('Server Error');
@@ -147,7 +149,8 @@ router.put('/:userId', protect, adminOnly, async (req, res) => {
 });
 
 // Disable (instead of delete) a user by ID with admin password confirmation
-router.delete('/:userId', protect, adminOnly, async (req, res) => { // Keep as DELETE method for RESTful consistency
+// We keep this as a DELETE method for RESTful consistency, but it performs an UPDATE internally.
+router.delete('/:userId', protect, adminOnly, async (req, res) => {
   const { userId } = req.params;
   const { adminPassword } = req.body; // Password of the currently logged-in admin
 
@@ -176,7 +179,7 @@ router.delete('/:userId', protect, adminOnly, async (req, res) => { // Keep as D
     const { rows } = await db.query(deactivateUserQuery, [userId]);
 
     if (rows.length === 0) {
-      return res.status(404).json({ msg: 'User not found.' });
+      return res.status(404).json({ msg: 'User not found or already inactive.' });
     }
 
     const deactivatedUser = rows[0];
@@ -212,7 +215,7 @@ router.put('/:userId/activate', protect, adminOnly, async (req, res) => {
     const { rows } = await db.query(activateUserQuery, [userId]);
 
     if (rows.length === 0) {
-      return res.status(404).json({ msg: 'User not found.' });
+      return res.status(404).json({ msg: 'User not found or already active.' });
     }
 
     const activatedUser = rows[0];
@@ -224,6 +227,5 @@ router.put('/:userId/activate', protect, adminOnly, async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
-
 
 module.exports = router;
