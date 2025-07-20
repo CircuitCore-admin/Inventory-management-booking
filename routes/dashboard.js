@@ -1,11 +1,12 @@
-// routes/dashboard.js
+// williams-inventory/routes/dashboard.js
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { protect, authorize } = require('../middleware/auth');
 const { logAction } = require('../services/auditLog'); // Ensure logAction is imported if used here
 
-router.get('/summary', protect, authorize('admin', 'management'), async (req, res) => {
+// Extend dashboard access to relevant roles
+router.get('/summary', protect, authorize('admin', 'management', 'event_team', 'warehouse'), async (req, res) => { // CHANGED authorize roles
   try {
     // We run all queries concurrently for better performance
     const [itemsInRepair, availableItems, upcomingEvents, openTickets] = await Promise.all([

@@ -9,7 +9,7 @@ import MainLayout from './components/MainLayout';
 import DashboardPage from './pages/DashboardPage';
 import InventoryPage from './pages/InventoryPage';
 import UserManagementPage from './pages/UserManagementPage'; // Import UserManagementPage
-import EventsPage from './pages/EventsPage'; // Import EventsPage for placeholder update
+import EventsPage from './components/EventsPage'; // Import EventsPage for placeholder update
 
 const theme = extendTheme({
   config: {
