@@ -178,7 +178,7 @@ const ItemDetailsModal = ({ isOpen, onClose, item }) => {
   if (!item) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} isCentered size="xl">
+    <Modal isOpen={isOpen} onClose={onClose} isCentered size="6xl">
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>{item.name} Details</ModalHeader>
