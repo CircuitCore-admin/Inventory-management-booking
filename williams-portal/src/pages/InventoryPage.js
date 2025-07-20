@@ -53,12 +53,31 @@ const InventoryPage = () => {
   const [filterLocation, setFilterLocation] = useState('');
   const [filterRegion, setFilterRegion] = useState(''); // New filter for region
 
-  // Defined categories and regions for filters (should match ItemFormModal)
-  const categories = [
-    'Wheelbase', 'Steering Wheel', 'Pedals', 'Rig', 'PC', 'Monitor',
-    'Headphones', 'Keyboard', 'Accessories'
-  ];
-  const regions = ['EU', 'US', 'ASIA', 'AFRICA', 'NORTH_AMERICA', 'OCEANIA', 'OTHER'];
+  const [categories, setCategories] = useState([]);
+  const [regions, setRegions] = useState([]);
+
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const [categoryRes, regionRes] = await Promise.all([
+          axios.get('http://localhost:3001/api/items/categories', {
+            headers: { 'x-auth-token': token },
+          }),
+          axios.get('http://localhost:3001/api/items/regions', {
+            headers: { 'x-auth-token': token },
+          }),
+        ]);
+        setCategories(categoryRes.data);
+        setRegions(regionRes.data);
+      } catch (err) {
+        console.error('Failed to fetch filter metadata', err);
+      }
+    };
+
+    fetchMetadata();
+  }, []);
+
 
   const fetchItems = useCallback(async () => {
     try {
@@ -196,11 +215,11 @@ const InventoryPage = () => {
           ))}
         </Select>
         <Button onClick={() => {
-            setSearchTerm('');
-            setFilterCategory('');
-            setFilterStatus('');
-            setFilterLocation('');
-            setFilterRegion('');
+          setSearchTerm('');
+          setFilterCategory('');
+          setFilterStatus('');
+          setFilterLocation('');
+          setFilterRegion('');
         }}>Clear Filters</Button>
       </Flex>
 
@@ -277,22 +296,30 @@ const InventoryPage = () => {
             </Tr>
           </Thead>
           <Tbody>
-            {sortedItems.map((item) => (
-              <Tr key={item.item_id}>
-                <Td>{item.name}</Td>
-                <Td>{item.unique_identifier}</Td>
-                <Td>{item.category}</Td>
-                <Td>{item.status}</Td>
-                <Td>{item.location}</Td>
-                <Td>{item.region || 'N/A'}</Td>
-                <Td isNumeric>${item.purchase_cost ? parseFloat(item.purchase_cost).toFixed(2) : '0.00'}</Td>
-                <Td>{item.purchase_date ? new Date(item.purchase_date).toLocaleDateString() : 'N/A'}</Td>
-                <Td>
-                  <Button size="sm" mr={2} onClick={() => handleViewDetails(item)}>Details</Button>
-                  <Button size="sm" onClick={() => handleEditItem(item)}>Edit</Button>
+            {sortedItems.length > 0 ? (
+              sortedItems.map((item) => (
+                <Tr key={item.item_id}>
+                  <Td>{item.name}</Td>
+                  <Td>{item.unique_identifier}</Td>
+                  <Td>{item.category}</Td>
+                  <Td>{item.status}</Td>
+                  <Td>{item.location}</Td>
+                  <Td>{item.region || 'N/A'}</Td>
+                  <Td isNumeric>${item.purchase_cost ? parseFloat(item.purchase_cost).toFixed(2) : '0.00'}</Td>
+                  <Td>{item.purchase_date ? new Date(item.purchase_date).toLocaleDateString() : 'N/A'}</Td>
+                  <Td>
+                    <Button size="sm" mr={2} onClick={() => handleViewDetails(item)}>Details</Button>
+                    <Button size="sm" onClick={() => handleEditItem(item)}>Edit</Button>
+                  </Td>
+                </Tr>
+              ))
+            ) : (
+              <Tr>
+                <Td colSpan={9} textAlign="center" py={8}>
+                  No items match your search/filter criteria.
                 </Td>
               </Tr>
-            ))}
+            )}
           </Tbody>
         </Table>
       </TableContainer>

@@ -45,13 +45,45 @@ router.get('/by-region-category-count', protect, async (req, res) => {
   }
 });
 
-// --- GET ALL ITEMS ---
 router.get('/', protect, async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT * FROM Inventory_Items ORDER BY item_id ASC');
+    const filters = [];
+    const values = [];
+
+    const { category, status, region, location, search } = req.query;
+
+    if (category) {
+      values.push(category);
+      filters.push(`category = $${values.length}`);
+    }
+
+    if (status) {
+      values.push(status);
+      filters.push(`status = $${values.length}`);
+    }
+
+    if (region) {
+      values.push(region);
+      filters.push(`region = $${values.length}`);
+    }
+
+    if (location) {
+      values.push(location);
+      filters.push(`location = $${values.length}`);
+    }
+
+    if (search) {
+      values.push(`%${search}%`);
+      filters.push(`(name ILIKE $${values.length} OR unique_identifier ILIKE $${values.length})`);
+    }
+
+    const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+    const query = `SELECT * FROM Inventory_Items ${whereClause} ORDER BY item_id ASC;`;
+
+    const { rows } = await db.query(query, values);
     res.json(rows);
   } catch (err) {
-    console.error(err.message);
+    console.error('Error fetching filtered items:', err.message);
     res.status(500).send('Server Error');
   }
 });
@@ -108,6 +140,29 @@ router.post('/', protect, adminOnly, async (req, res) => {
     if (err.code === '23505') { // unique_identifier already exists
       return res.status(400).json({ msg: 'Item with this unique identifier already exists.' });
     }
+    res.status(500).send('Server Error');
+  }
+});
+
+
+// Get distinct categories in use
+router.get('/categories', protect, async (req, res) => {
+  try {
+    const result = await db.query(`SELECT DISTINCT category FROM Inventory_Items WHERE category IS NOT NULL ORDER BY category ASC`);
+    res.json(result.rows.map(row => row.category));
+  } catch (err) {
+    console.error('Failed to fetch categories:', err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// Get distinct regions in use
+router.get('/regions', protect, async (req, res) => {
+  try {
+    const result = await db.query(`SELECT DISTINCT region FROM Inventory_Items WHERE region IS NOT NULL ORDER BY region ASC`);
+    res.json(result.rows.map(row => row.region));
+  } catch (err) {
+    console.error('Failed to fetch regions:', err.message);
     res.status(500).send('Server Error');
   }
 });
@@ -270,6 +325,5 @@ router.delete('/media/:mediaId', protect, adminOnly, async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
-
 
 module.exports = router;
