@@ -1,37 +1,27 @@
 // index.js
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
+
+const cors = require('cors'); // 1. Import cors
+
 const app = express();
-const path = require('path'); // ADD THIS LINE: Import path module
-const cors = require('cors'); // Import cors
+app.use(express.json());
+app.use(cors()); // 2. Use cors middleware
 
-// Connect Database
-// const db = require('./db'); // Assuming your db.js handles the connection logic
-// db.query('SELECT 1').then(() => console.log('PostgreSQL connected')).catch(err => console.error('PostgreSQL connection error:', err));
-
-// Init Middleware
-app.use(express.json({ extended: false })); // Body parser for JSON
-app.use(cors()); // Use CORS middleware
-
-// --- NEW: Custom Middleware for PDF Content-Type ---
-// This ensures PDFs are served with the correct Content-Type, enabling inline viewing.
-// Place it before your express.static middleware.
+// Serve static files from the 'public' directory
+// Add middleware to explicitly set Content-Type for PDF files
 app.use((req, res, next) => {
     if (req.path.endsWith('.pdf')) {
         res.set('Content-Type', 'application/pdf');
     }
     next();
 });
-
-// --- NEW: Serve Static Files ---
-// Serve files from the 'public/uploads' directory under the '/uploads' URL path
-app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
-
-// Serve other static files from the 'public' directory (e.g., index.html, favicon.ico)
-app.use(express.static('public'));
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads'))); // Explicitly serve uploads
+app.use(express.static('public')); // Serve other static files (like index.html, etc. if needed)
 
 
-// Define Routes
+// --- CONNECT ROUTERS ---
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/items', require('./routes/items'));
@@ -42,8 +32,5 @@ app.use('/api/audit', require('./routes/audit'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/templates', require('./routes/templates'));
 
-// Basic route for testing
-app.get('/', (req, res) => res.send('API Running'));
-
-const PORT = process.env.PORT || 3001; // Use port from environment variable or 3001
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
