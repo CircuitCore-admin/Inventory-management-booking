@@ -30,16 +30,18 @@ import {
   useDisclosure,
   Flex,
   IconButton,
-  Text, // Ensure Text is imported if you use it for messages
-  AlertDialog, // For the second confirmation prompt
+  Text,
+  AlertDialog,
   AlertDialogBody,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
+  Switch, // For active/inactive toggle
+  Badge, // To show active status
 } from '@chakra-ui/react';
 import { TriangleUpIcon, TriangleDownIcon } from '@chakra-ui/icons';
-import { jwtDecode } from 'jwt-decode'; // Import jwtDecode to get current user ID
+import { jwtDecode } from 'jwt-decode';
 
 // Helper function to format role names
 const formatRoleName = (role) => {
@@ -69,12 +71,13 @@ const UserManagementPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // New states for delete functionality
-  const { isOpen: isConfirmDeleteOpen, onOpen: onOpenConfirmDelete, onClose: onCloseConfirmDelete } = useDisclosure();
+  // States for disable/activate functionality
+  const { isOpen: isConfirmStatusChangeOpen, onOpen: onOpenConfirmStatusChange, onClose: onCloseConfirmStatusChange } = useDisclosure();
   const { isOpen: isPasswordPromptOpen, onOpen: onOpenPasswordPrompt, onClose: onClosePasswordPrompt } = useDisclosure();
-  const [userToDelete, setUserToDelete] = useState(null);
+  const [userToModify, setUserToModify] = useState(null); // User for disable/activate
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
-  const cancelRef = useRef(); // For AlertDialog focus management
+  const [targetStatus, setTargetStatus] = useState(null); // 'activate' or 'deactivate'
+  const cancelRef = useRef();
 
   const { isOpen: isCreateModalOpen, onOpen: onOpenCreateModal, onClose: onCloseCreateModal } = useDisclosure();
 
@@ -83,6 +86,7 @@ const UserManagementPage = () => {
 
   const [sortColumn, setSortColumn] = useState('full_name');
   const [sortDirection, setSortDirection] = useState('asc');
+  const [showInactiveUsers, setShowInactiveUsers] = useState(false); // New filter state
 
   const toast = useToast();
 
@@ -90,7 +94,7 @@ const UserManagementPage = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const { data } = await axios.get('/api/users', {
+      const { data } = await axios.get(`/api/users?includeInactive=${showInactiveUsers}`, { // Pass filter
         headers: { 'x-auth-token': token },
       });
       setUsers(data);
@@ -106,7 +110,7 @@ const UserManagementPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, showInactiveUsers]); // Add showInactiveUsers to dependency array
 
   useEffect(() => {
     fetchUsers();
@@ -235,31 +239,31 @@ const UserManagementPage = () => {
     setIsEditModalOpen(true);
   };
 
-  // --- NEW DELETE LOGIC ---
-  const handleDeleteClick = (user) => {
-    setUserToDelete(user);
-    onOpenConfirmDelete(); // Open the first confirmation dialog
+  // --- NEW STATUS CHANGE LOGIC (Disable/Activate) ---
+  const handleStatusChangeClick = (user, status) => { // status can be 'activate' or 'deactivate'
+    setUserToModify(user);
+    setTargetStatus(status);
+    onOpenConfirmStatusChange();
   };
 
-  const handleConfirmDeleteProceed = () => {
-    onCloseConfirmDelete(); // Close the first dialog
-    onOpenPasswordPrompt(); // Open the password prompt
+  const handleConfirmStatusChangeProceed = () => {
+    onCloseConfirmStatusChange();
+    onOpenPasswordPrompt();
   };
 
-  const handleFinalDelete = async () => {
-    if (!userToDelete) return;
+  const handleFinalStatusChange = async () => {
+    if (!userToModify || !targetStatus) return;
 
-    setLoading(true); // Indicate loading while deleting
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Get the current user's ID from the token to prevent self-deletion
       const decodedToken = jwtDecode(token);
       const currentUserId = decodedToken.user.id;
 
-      if (currentUserId === userToDelete.user_id) {
+      if (currentUserId === userToModify.user_id && targetStatus === 'deactivate') {
         toast({
-          title: 'Deletion Blocked.',
-          description: 'You cannot delete your own account.',
+          title: 'Operation Blocked.',
+          description: 'You cannot deactivate your own account.',
           status: 'warning',
           duration: 5000,
           isClosable: true,
@@ -270,40 +274,52 @@ const UserManagementPage = () => {
         return;
       }
 
-      await axios.delete(
-        `/api/users/${userToDelete.user_id}`,
-        {
-          headers: { 'x-auth-token': token },
-          data: { adminPassword: adminPasswordInput }, // Send password in request body for DELETE
-        }
-      );
+      // MODIFIED: Removed 'response =' assignment as the variable was not explicitly used afterwards
+      if (targetStatus === 'deactivate') {
+        await axios.delete(
+          `/api/users/${userToModify.user_id}`,
+          {
+            headers: { 'x-auth-token': token },
+            data: { adminPassword: adminPasswordInput },
+          }
+        );
+      } else { // targetStatus === 'activate'
+        await axios.put(
+          `/api/users/${userToModify.user_id}/activate`,
+          { adminPassword: adminPasswordInput },
+          {
+            headers: { 'x-auth-token': token },
+          }
+        );
+      }
 
       toast({
-        title: 'User Deleted.',
-        description: `${userToDelete.full_name} has been removed.`,
+        title: `User ${targetStatus === 'deactivate' ? 'Deactivated' : 'Activated'}.`,
+        description: `${userToModify.full_name} has been ${targetStatus === 'deactivate' ? 'deactivated' : 'activated'}.`,
         status: 'success',
         duration: 5000,
         isClosable: true,
       });
       onClosePasswordPrompt();
-      setAdminPasswordInput(''); // Clear password input
-      setUserToDelete(null); // Clear user to delete
-      fetchUsers(); // Refresh the list
+      setAdminPasswordInput('');
+      setUserToModify(null);
+      setTargetStatus(null);
+      fetchUsers();
     } catch (error) {
-      console.error('Failed to delete user:', error);
+      console.error(`Failed to ${targetStatus} user:`, error);
       toast({
-        title: 'Deletion Failed.',
-        description: error.response?.data?.msg || 'Could not delete user. Check admin password.',
+        title: `${targetStatus === 'deactivate' ? 'Deactivation' : 'Activation'} Failed.`,
+        description: error.response?.data?.msg || `Could not ${targetStatus} user. Check admin password.`,
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
-      setAdminPasswordInput(''); // Clear password input on error
+      setAdminPasswordInput('');
     } finally {
       setLoading(false);
     }
   };
-  // --- END NEW DELETE LOGIC ---
+  // --- END NEW STATUS CHANGE LOGIC ---
 
 
   const handleUpdateUser = async (e) => {
@@ -316,6 +332,7 @@ const UserManagementPage = () => {
         fullName: currentUser.full_name,
         email: currentUser.email,
         role: currentUser.role,
+        is_active: currentUser.is_active, // Include is_active in updateData
       };
       if (currentUser.password) {
         updateData.password = currentUser.password;
@@ -361,9 +378,18 @@ const UserManagementPage = () => {
     <Box>
       <Heading mb={6}>User Management</Heading>
 
-      <Button colorScheme="green" mb={6} onClick={onOpenCreateModal}>
-        Create New Account
-      </Button>
+      <Flex justifyContent="space-between" mb={6} alignItems="center">
+        <Button colorScheme="green" onClick={onOpenCreateModal}>
+          Create New Account
+        </Button>
+        <FormControl display="flex" alignItems="center" width="auto">
+          <FormLabel htmlFor="show-inactive" mb="0">
+            Show Inactive Users
+          </FormLabel>
+          <Switch id="show-inactive" isChecked={showInactiveUsers} onChange={(e) => setShowInactiveUsers(e.target.checked)} />
+        </FormControl>
+      </Flex>
+
 
       {/* New Account Creation Modal */}
       <Modal isOpen={isCreateModalOpen} onClose={onCloseCreateModal} isCentered>
@@ -460,6 +486,7 @@ const UserManagementPage = () => {
                   )}
                 </Flex>
               </Th>
+              <Th>Status</Th> {/* New Status Column */}
               <Th>Actions</Th>
             </Tr>
           </Thead>
@@ -472,12 +499,23 @@ const UserManagementPage = () => {
                   {formatRoleName(user.role)}
                 </Td>
                 <Td>
+                  <Badge colorScheme={user.is_active ? 'green' : 'red'}>
+                    {user.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </Td>
+                <Td>
                   <Button size="sm" onClick={() => handleEditUser(user)} mr={2}>
                     Edit
                   </Button>
-                  <Button size="sm" colorScheme="red" onClick={() => handleDeleteClick(user)}>
-                    Delete
-                  </Button>
+                  {user.is_active ? (
+                    <Button size="sm" colorScheme="orange" onClick={() => handleStatusChangeClick(user, 'deactivate')}>
+                      Deactivate
+                    </Button>
+                  ) : (
+                    <Button size="sm" colorScheme="green" onClick={() => handleStatusChangeClick(user, 'activate')}>
+                      Activate
+                    </Button>
+                  )}
                 </Td>
               </Tr>
             ))}
@@ -531,6 +569,16 @@ const UserManagementPage = () => {
                     <option value="contractor">Contractor</option>
                   </Select>
                 </FormControl>
+                <FormControl display="flex" alignItems="center">
+                  <FormLabel htmlFor="edit-is-active" mb="0">
+                    Account Active?
+                  </FormLabel>
+                  <Switch
+                    id="edit-is-active"
+                    isChecked={currentUser.is_active}
+                    onChange={(e) => setCurrentUser({ ...currentUser, is_active: e.target.checked })}
+                  />
+                </FormControl>
                 <Button type="submit" colorScheme="blue" width="full">
                   Save Changes
                 </Button>
@@ -543,42 +591,47 @@ const UserManagementPage = () => {
         </Modal>
       )}
 
-      {/* Delete Confirmation AlertDialog */}
+      {/* Deactivate/Activate Confirmation AlertDialog */}
       <AlertDialog
-        isOpen={isConfirmDeleteOpen}
+        isOpen={isConfirmStatusChangeOpen}
         leastDestructiveRef={cancelRef}
-        onClose={onCloseConfirmDelete}
+        onClose={onCloseConfirmStatusChange}
       >
         <AlertDialogOverlay>
           <AlertDialogContent>
             <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Delete User
+              {targetStatus === 'deactivate' ? 'Deactivate User' : 'Activate User'}
             </AlertDialogHeader>
 
             <AlertDialogBody>
-              Are you sure you want to delete {userToDelete?.full_name}? This action cannot be undone.
+              Are you sure you want to {targetStatus === 'deactivate' ? 'deactivate' : 'activate'} {userToModify?.full_name}?
+              {targetStatus === 'deactivate' && <Text mt={2}>This will prevent them from logging in.</Text>}
             </AlertDialogBody>
 
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onCloseConfirmDelete}>
+              <Button ref={cancelRef} onClick={onCloseConfirmStatusChange}>
                 Cancel
               </Button>
-              <Button colorScheme="red" onClick={handleConfirmDeleteProceed} ml={3}>
-                Delete
+              <Button
+                colorScheme={targetStatus === 'deactivate' ? 'red' : 'green'}
+                onClick={handleConfirmStatusChangeProceed}
+                ml={3}
+              >
+                {targetStatus === 'deactivate' ? 'Deactivate' : 'Activate'}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
 
-      {/* Admin Password Prompt Modal */}
+      {/* Admin Password Prompt Modal for Status Change */}
       <Modal isOpen={isPasswordPromptOpen} onClose={onClosePasswordPrompt} isCentered>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Confirm Admin Password</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <Text mb={4}>Please enter your admin password to confirm deletion of {userToDelete?.full_name}:</Text>
+            <Text mb={4}>Please enter your admin password to confirm {targetStatus === 'deactivate' ? 'deactivation' : 'activation'} of {userToModify?.full_name}:</Text>
             <FormControl id="adminPassword">
               <FormLabel>Admin Password</FormLabel>
               <Input
@@ -590,8 +643,13 @@ const UserManagementPage = () => {
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" onClick={() => { onClosePasswordPrompt(); setAdminPasswordInput(''); }}>Cancel</Button>
-            <Button colorScheme="red" onClick={handleFinalDelete} ml={3} isLoading={loading}>
-              Confirm Delete
+            <Button
+              colorScheme={targetStatus === 'deactivate' ? 'red' : 'green'}
+              onClick={handleFinalStatusChange}
+              ml={3}
+              isLoading={loading}
+            >
+              Confirm
             </Button>
           </ModalFooter>
         </ModalContent>
