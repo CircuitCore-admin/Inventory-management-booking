@@ -41,6 +41,7 @@ app.use('/api/maintenance', require('./routes/maintenance'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/audit', require('./routes/audit'));
 app.use('/api/templates', require('./routes/templates'));
+app.use('/api/event-requests', require('./routes/event-requests'));
 
 // Basic route for testing
 app.get('/', (req, res) => res.send('API Running'));

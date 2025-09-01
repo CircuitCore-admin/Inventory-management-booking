@@ -4,13 +4,12 @@ const router = express.Router();
 const db = require('../db');
 const { protect, adminOnly, authorize } = require('../middleware/auth');
 const { logAction } = require('../services/auditLog');
-const crypto = require('crypto'); // Ensure crypto is imported
-const bcrypt = require('bcryptjs'); // Ensure bcryptjs is imported
 
-// --- GET ALL EVENTS ---
-router.get('/', protect, authorize('admin', 'management', 'event_team', 'warehouse'), async (req, res) => { // Added authorize middleware
+// --- GET ALL APPROVED EVENTS for the calendar ---
+router.get('/', protect, async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT * FROM Events ORDER BY start_date DESC');
+    // Note: We only get approved events for the main calendar view.
+    const { rows } = await db.query("SELECT * FROM events WHERE status = 'approved' ORDER BY start_date DESC");
     res.json(rows);
   } catch (err) {
     console.error(err.message);
@@ -18,27 +17,11 @@ router.get('/', protect, authorize('admin', 'management', 'event_team', 'warehou
   }
 });
 
-// --- CREATE NEW EVENT ---
-router.post('/', protect, adminOnly, async (req, res) => { // Keep adminOnly for event creation
-  const { name, location, start_date, end_date } = req.body;
+// --- GET A SINGLE EVENT BY ITS ID ---
+// This is the only route that should handle getting a single event.
+router.get('/:eventId', protect, async (req, res) => {
   try {
-    const newEventQuery = `INSERT INTO Events (name, location, start_date, end_date) VALUES ($1, $2, $3, $4) RETURNING *;`;
-    const { rows } = await db.query(newEventQuery, [name, location, start_date, end_date]);
-    
-    // UPDATED CALL: Pass req.user.full_name
-    await logAction(req.user.id, req.user.full_name, 'event_created', { eventId: rows[0].event_id, eventName: rows[0].name });
-    
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
-});
-
-// --- GET SINGLE EVENT BY ID ---
-router.get('/:id', protect, authorize('admin', 'management', 'event_team', 'warehouse'), async (req, res) => { // Added authorize
-  try {
-    const { rows } = await db.query('SELECT * FROM Events WHERE event_id = $1', [req.params.id]);
+    const { rows } = await db.query('SELECT * FROM events WHERE event_id = $1', [req.params.eventId]);
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Event not found' });
     }
@@ -49,17 +32,17 @@ router.get('/:id', protect, authorize('admin', 'management', 'event_team', 'ware
   }
 });
 
-// --- UPDATE EVENT ---
-router.put('/:id', protect, adminOnly, async (req, res) => { // Kept adminOnly
+// --- UPDATE AN EXISTING EVENT ---
+// Note: This uses /:id, which is fine as long as it's the only one.
+router.put('/:id', protect, authorize('admin', 'management'), async (req, res) => {
   const { name, location, start_date, end_date } = req.body;
   try {
-    const updateQuery = `UPDATE Events SET name = $1, location = $2, start_date = $3, end_date = $4 WHERE event_id = $5 RETURNING *;`;
+    const updateQuery = `UPDATE events SET name = $1, location = $2, start_date = $3, end_date = $4 WHERE event_id = $5 RETURNING *;`;
     const { rows } = await db.query(updateQuery, [name, location, start_date, end_date, req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Event not found' });
     }
-    // UPDATED CALL: Pass req.user.full_name
-    await logAction(req.user.id, req.user.full_name, 'event_updated', { eventId: req.params.id, eventName: rows[0].name });
+    await logAction(req.user.id, 'event_updated', { eventId: req.params.id, eventName: rows[0].name });
     res.json(rows[0]);
   } catch (err) {
     console.error(err.message);
@@ -67,26 +50,19 @@ router.put('/:id', protect, adminOnly, async (req, res) => { // Kept adminOnly
   }
 });
 
-// --- DELETE EVENT ---
-router.delete('/:id', protect, adminOnly, async (req, res) => { // Kept adminOnly
+// --- DELETE AN EVENT ---
+router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
-    // If you want to strictly keep related bookings/etc. when an event is deleted,
-    // and not have FKs (similar to users), you would remove the FK.
-    // If you want ON DELETE SET NULL, you would alter the FK.
-    // For now, assuming DELETE actually deletes.
-    const { rows } = await db.query('DELETE FROM Events WHERE event_id = $1 RETURNING *', [req.params.id]);
+    const { rows } = await db.query('DELETE FROM events WHERE event_id = $1 RETURNING *', [req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Event not found' });
     }
-    // UPDATED CALL: Pass req.user.full_name
-    await logAction(req.user.id, req.user.full_name, 'event_deleted', { eventId: req.params.id, eventName: rows[0].name });
-    res.json({ msg: `Event '${rows[0].name}' deleted successfully.` });
+    await logAction(req.user.id, 'event_deleted', { eventId: req.params.id, eventName: rows[0].name });
+    res.json({ msg: `Event '${rows[0].name}' was deleted.` });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
-
-// Assuming OTP routes from previous conversation are integrated into auth.js or a separate otp.js
 
 module.exports = router;
