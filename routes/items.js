@@ -82,6 +82,8 @@ router.get('/', protect, async (req, res) => {
 
     const { rows } = await db.query(query, values);
     res.json(rows);
+
+    
   } catch (err) {
     console.error('Error fetching filtered items:', err.message);
     res.status(500).send('Server Error');
