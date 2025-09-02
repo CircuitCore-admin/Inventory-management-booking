@@ -8,11 +8,12 @@ import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/MainLayout';
 import DashboardPage from './pages/DashboardPage';
 import InventoryPage from './pages/InventoryPage';
-import UserManagementPage from './pages/UserManagementPage'; // Import UserManagementPage
+import UserManagementPage from './pages/UserManagementPage';
 import EventRequestPage from './pages/EventRequestPage';
 import EventApprovalPage from './pages/EventApprovalPage';
 import EventsPage from './pages/EventsPage';
 import EventDetailPage from './pages/EventDetailPage';
+import BookingsPage from './pages/BookingPage';
 
 const theme = extendTheme({
   config: {
@@ -37,7 +38,7 @@ function App() {
               <Route path="/approve-events" element={<EventApprovalPage />} />
               <Route path="/events" element={<EventsPage />} />
               <Route path="/events/:eventId" element={<EventDetailPage />} />
-              <Route path="/bookings" element={<div>Bookings Page</div>} />
+              <Route path="/bookings" element={<BookingsPage />} /> {/* Link the new page to its route */}
               <Route path="/maintenance" element={<div>Maintenance Page</div>} />
               <Route path="/audit" element={<div>Audit Page</div>} />
               <Route path="/templates" element={<div>Templates Page</div>} />
