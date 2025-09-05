@@ -66,7 +66,7 @@ const MainLayout = () => {
       {/* Sidebar */}
       <Box width="240px" bg={sidebarBg} p={4} boxShadow="md">
         <Heading size="md" mb={8}>
-          Williams Inv.
+          Inventory Management
         </Heading>
         <VStack align="stretch" spacing={2}>
           {menuItems.map((item) => (
