@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton,
-  Button, useToast, VStack, Text, Spinner
+  Button, useToast, Spinner
 } from '@chakra-ui/react';
 import { Table, Thead, Tbody, Tr, Th, Td, TableContainer } from '@chakra-ui/table';
 
