@@ -73,13 +73,13 @@ router.put('/:eventId/allocated-items/:itemId', protect, async (req, res) => {
     }
 });
 
-// --- UPDATE AN EXISTING EVENT ---
-// Note: This uses /:id, which is fine as long as it's the only one.
+// CORRECTED ROUTE: UPDATE AN EXISTING EVENT
+// This now correctly updates the status along with other event details.
 router.put('/:id', protect, authorize('admin', 'management'), async (req, res) => {
-  const { name, location, start_date, end_date } = req.body;
+  const { name, location, start_date, end_date, status } = req.body;
   try {
-    const updateQuery = `UPDATE events SET name = $1, location = $2, start_date = $3, end_date = $4 WHERE event_id = $5 RETURNING *;`;
-    const { rows } = await db.query(updateQuery, [name, location, start_date, end_date, req.params.id]);
+    const updateQuery = `UPDATE events SET name = $1, location = $2, start_date = $3, end_date = $4, status = $5 WHERE event_id = $6 RETURNING *;`;
+    const { rows } = await db.query(updateQuery, [name, location, start_date, end_date, status, req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Event not found' });
     }

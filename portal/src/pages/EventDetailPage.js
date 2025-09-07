@@ -86,12 +86,36 @@ const EventDetailPage = () => {
     });
   };
 
-  const handleStatusChange = (e) => {
-    setFormData({
-      ...formData,
-      status: e.target.value,
-    });
-    handleSave();
+  const handleUpdateStatus = async (newStatus) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      // CORRECTED: Send the entire formData object with the updated status
+      const updatedFormData = { ...formData, status: newStatus };
+      await axios.put(`/api/events/${eventId}`, updatedFormData, { headers });
+      
+      // Update state directly for a snappier UI
+      setFormData(updatedFormData);
+
+      toast({
+        title: 'Status updated.',
+        description: `Event status changed to ${newStatus}.`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Failed to update event status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update event status.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      // Re-fetch to revert to the correct state if the update failed
+      fetchEventDetails(); 
+    }
   };
 
   const handleSave = async () => {
@@ -295,7 +319,7 @@ const EventDetailPage = () => {
               <Select
                 name="status"
                 value={formData.status || ''}
-                onChange={handleStatusChange}
+                onChange={(e) => handleUpdateStatus(e.target.value)}
                 size="sm"
                 width="200px"
               >
@@ -413,10 +437,7 @@ const EventDetailPage = () => {
             </AlertDialogBody>
 
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onCloseDeleteAlert}>
-                Cancel
-              </Button>
-              <Button colorScheme="red" onClick={handleDelete} ml={3}>
+              <Button ref={cancelRef} onClick={handleDelete} ml={3}>
                 Delete
               </Button>
             </AlertDialogFooter>
