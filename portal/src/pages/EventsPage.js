@@ -67,7 +67,9 @@ const EventsPage = () => {
 
   const tableBg = useColorModeValue('white', 'gray.700');
   const pageBg = useColorModeValue('gray.50', 'gray.800');
-
+  const menuBg = useColorModeValue('white', 'gray.700');
+  const menuHoverBg = useColorModeValue('gray.100', 'gray.600');
+  const rowHoverBg = useColorModeValue('gray.50', 'gray.600');
   const fetchEvents = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -266,18 +268,18 @@ const EventsPage = () => {
       event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       event.location.toLowerCase().includes(searchTerm.toLowerCase())
     ).sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
-    .map(event => ({
-      id: event.event_id,
-      title: event.name,
-      start: event.start_date,
-      end: event.end_date,
-      allDay: true,
-      ...event
-    }));
+      .map(event => ({
+        id: event.event_id,
+        title: event.name,
+        start: event.start_date,
+        end: event.end_date,
+        allDay: true,
+        ...event
+      }));
   }, [events, searchTerm]);
 
   const handleEventClick = (eventId) => {
-    navigate(`/event-details/${eventId}`);
+    navigate(`/events/${eventId}`);
   };
 
   const handleCreateEvent = () => {
@@ -288,7 +290,7 @@ const EventsPage = () => {
     const statusOption = customStatusOptions.find(opt => opt.label.toLowerCase() === status?.toLowerCase());
     return statusOption ? statusOption.color : 'gray';
   };
-  
+
   const getActivationColor = (type) => {
     const typeOption = activationTypeOptions.find(opt => opt.label.toLowerCase() === type?.toLowerCase());
     return typeOption ? typeOption.color : 'gray';
@@ -313,18 +315,18 @@ const EventsPage = () => {
     if (!startDateString || !endDateString) return 'N/A';
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
-    
+
     if (startDate.toDateString() === endDate.toDateString()) {
       const options = { day: 'numeric', month: 'short', year: 'numeric' };
       return new Intl.DateTimeFormat('en-US', options).format(startDate);
     }
-    
+
     const startOptions = { day: 'numeric', month: 'short' };
     const endOptions = { day: 'numeric', month: 'short', year: 'numeric' };
-    
+
     const formattedStartDate = new Intl.DateTimeFormat('en-US', startOptions).format(startDate);
     const formattedEndDate = new Intl.DateTimeFormat('en-US', endOptions).format(endDate);
-    
+
     return `${formattedStartDate} - ${formattedEndDate}`;
   };
 
@@ -332,9 +334,6 @@ const EventsPage = () => {
     if (!status) return '';
     return status.split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
   };
-
-  const menuBg = useColorModeValue('white', 'gray.700');
-  const menuHoverBg = useColorModeValue('gray.100', 'gray.600');
 
   if (loading) {
     return (
@@ -428,7 +427,12 @@ const EventsPage = () => {
               <Tbody>
                 {filteredEvents.length > 0 ? (
                   filteredEvents.map(event => (
-                    <Tr key={event.event_id}>
+                    <Tr
+                      key={event.event_id}
+                      onClick={() => handleEventClick(event.event_id)}
+                      cursor="pointer"
+                      _hover={{ bg: rowHoverBg }}
+                    >
                       <Td>
                         <VStack align="start" spacing={0}>
                           <Text fontWeight="bold">{event.name}</Text>
@@ -637,14 +641,23 @@ const EventsPage = () => {
                         </Menu>
                       </Td>
                       <Td>
-                        <IconButton
-                          icon={<FaEllipsisV />}
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEventClick(event.event_id);
-                          }}
-                        />
+                        <Menu>
+                          <MenuButton
+                            as={IconButton}
+                            icon={<FaEllipsisV />}
+                            variant="ghost"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <MenuList
+                            onClick={(e) => e.stopPropagation()}
+                            zIndex={9999}
+                          >
+                            <MenuItem onClick={() => navigate(`/events/${event.event_id}`)}>View Details</MenuItem>
+                            <MenuItem>Manage Bookings</MenuItem>
+                            <MenuItem>Allocate Items</MenuItem>
+                            <MenuItem>Manage OTPs</MenuItem>
+                          </MenuList>
+                        </Menu>
                       </Td>
                     </Tr>
                   ))
@@ -690,7 +703,7 @@ const EventsPage = () => {
           customStatusOptions={customStatusOptions}
           fetchCustomStatusOptions={fetchCustomStatusOptions}
         />
-        
+
         <ActivationTypeManagementModal
           isOpen={isActivationModalOpen}
           onClose={onActivationModalClose}
