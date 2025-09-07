@@ -1,3 +1,4 @@
+// src/components/ItemAllocationModal.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import {
@@ -28,7 +29,7 @@ import {
 } from '@chakra-ui/react';
 import { SearchIcon } from '@chakra-ui/icons';
 
-const ItemAllocationModal = ({ isOpen, onClose, event, onSuccess }) => {
+const ItemAllocationModal = ({ isOpen, onClose, event, onAllocationSuccess }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,7 +41,7 @@ const ItemAllocationModal = ({ isOpen, onClose, event, onSuccess }) => {
       setLoading(true);
       const token = localStorage.getItem('token');
       // Fetch only items that are 'In Storage' and available
-      const { data } = await axios.get(`http://localhost:3001/api/items?status=In Storage`, {
+      const { data } = await axios.get(`http://localhost:3001/api/items?status=In Storage&excludeEventId=${event.event_id}`, {
         headers: { 'x-auth-token': token },
       });
       setItems(data);
@@ -56,7 +57,7 @@ const ItemAllocationModal = ({ isOpen, onClose, event, onSuccess }) => {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, event]);
 
   useEffect(() => {
     if (isOpen) {
@@ -113,8 +114,9 @@ const ItemAllocationModal = ({ isOpen, onClose, event, onSuccess }) => {
 
     try {
       const token = localStorage.getItem('token');
+      // Updated the API endpoint to be consistent with the other back-end routes
       await axios.post(
-        `http://localhost:3001/api/bookings/${event.event_id}/allocate`,
+        `http://localhost:3001/api/events/${event.event_id}/allocate-items`,
         { items: itemsToAllocate },
         { headers: { 'x-auth-token': token } }
       );
@@ -125,7 +127,8 @@ const ItemAllocationModal = ({ isOpen, onClose, event, onSuccess }) => {
         duration: 5000,
         isClosable: true,
       });
-      onSuccess();
+      // Call the success callback to refresh the parent component
+      onAllocationSuccess();
       onClose();
     } catch (error) {
       console.error('Allocation failed:', error);

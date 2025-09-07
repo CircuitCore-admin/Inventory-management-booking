@@ -23,9 +23,10 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
+  IconButton,
 } from '@chakra-ui/react';
 import { Table, Thead, Tbody, Tr, Th, Td, TableContainer } from '@chakra-ui/table';
-import { FaEdit } from 'react-icons/fa';
+import { FaEdit, FaTrash } from 'react-icons/fa';
 import ItemAllocationModal from '../components/ItemAllocationModal';
 
 const EventDetailPage = () => {
@@ -40,6 +41,10 @@ const EventDetailPage = () => {
 
   const { isOpen: isDeleteAlertOpen, onOpen: onOpenDeleteAlert, onClose: onCloseDeleteAlert } = useDisclosure();
   const { isOpen: isAllocationModalOpen, onOpen: onOpenAllocationModal, onClose: onCloseAllocationModal } = useDisclosure();
+  const { isOpen: isRemoveAlertOpen, onOpen: onOpenRemoveAlert, onClose: onCloseRemoveAlert } = useDisclosure();
+  const [itemToRemove, setItemToRemove] = useState(null);
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editedLocation, setEditedLocation] = useState('');
   const cancelRef = React.useRef();
 
   const fetchEventDetails = useCallback(async () => {
@@ -135,6 +140,70 @@ const EventDetailPage = () => {
       toast({
         title: 'Error',
         description: 'Failed to delete the event.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleRemoveItem = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      await axios.delete(`/api/events/${eventId}/allocated-items/${itemToRemove.item_id}`, { headers });
+      
+      onCloseRemoveAlert();
+      fetchEventDetails();
+      toast({
+        title: 'Item Deallocated.',
+        description: 'The item has been successfully removed from the event.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Failed to deallocate item:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove the item from the event.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const openRemoveItemAlert = (item) => {
+    setItemToRemove(item);
+    onOpenRemoveAlert();
+  };
+
+  const handleEditLocation = (itemId, location) => {
+    setEditingItemId(itemId);
+    setEditedLocation(location);
+  };
+
+  const handleSaveLocation = async (itemId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      await axios.put(`/api/events/${eventId}/allocated-items/${itemId}`, { pickup_location: editedLocation }, { headers });
+      
+      setEditingItemId(null);
+      fetchEventDetails();
+      toast({
+        title: 'Location Updated.',
+        description: 'The pickup location has been updated.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Failed to update pickup location:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update pickup location.',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -244,19 +313,59 @@ const EventDetailPage = () => {
               <Th>ID</Th>
               <Th>Item Name</Th>
               <Th>Category</Th>
+              <Th>Pickup Location</Th>
+              <Th>Actions</Th>
             </Tr>
           </Thead>
           <Tbody>
             {bookedItems.length > 0 ? (
               bookedItems.map((item, index) => (
                 <Tr key={index}>
-                  <Td>{item.item_id}</Td>
+                  <Td>{item.unique_identifier}</Td>
                   <Td>{item.name}</Td>
                   <Td>{item.category}</Td>
+                  <Td>
+                    {editingItemId === item.item_id ? (
+                      <HStack>
+                        <Input
+                          value={editedLocation}
+                          onChange={(e) => setEditedLocation(e.target.value)}
+                          size="sm"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => handleSaveLocation(item.item_id)}
+                          colorScheme="green"
+                        >
+                          Save
+                        </Button>
+                      </HStack>
+                    ) : (
+                      <HStack>
+                        <Text>{item.pickup_location || 'Not set'}</Text>
+                        <IconButton
+                          icon={<FaEdit />}
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEditLocation(item.item_id, item.pickup_location)}
+                          aria-label={`Edit location for ${item.name}`}
+                        />
+                      </HStack>
+                    )}
+                  </Td>
+                  <Td>
+                    <IconButton
+                      icon={<FaTrash />}
+                      size="sm"
+                      colorScheme="red"
+                      onClick={() => openRemoveItemAlert(item)}
+                      aria-label={`Remove ${item.name}`}
+                    />
+                  </Td>
                 </Tr>
               ))
             ) : (
-              <Tr><Td colSpan={3}>No items booked for this event yet.</Td></Tr>
+              <Tr><Td colSpan={5} textAlign="center">No items booked for this event yet.</Td></Tr>
             )}
           </Tbody>
         </Table>
@@ -274,7 +383,7 @@ const EventDetailPage = () => {
         />
       )}
 
-      {/* Confirmation Dialog for Deletion */}
+      {/* Confirmation Dialog for Deleting an Event */}
       <AlertDialog
         isOpen={isDeleteAlertOpen}
         leastDestructiveRef={cancelRef}
@@ -296,6 +405,34 @@ const EventDetailPage = () => {
               </Button>
               <Button colorScheme="red" onClick={handleDelete} ml={3}>
                 Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
+      {/* Confirmation Dialog for Removing an Item */}
+      <AlertDialog
+        isOpen={isRemoveAlertOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onCloseRemoveAlert}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Remove Item
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to remove **{itemToRemove?.name}** from this event?
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onCloseRemoveAlert}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleRemoveItem} ml={3}>
+                Remove
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
