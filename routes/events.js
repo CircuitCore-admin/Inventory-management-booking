@@ -75,16 +75,71 @@ router.put('/:eventId/allocated-items/:itemId', protect, async (req, res) => {
 });
 
 // CORRECTED ROUTE: UPDATE AN EXISTING EVENT
-// This now only updates the status and leaves other details unchanged.
 router.put('/:id', protect, authorize('admin', 'management'), async (req, res) => {
-  const { status } = req.body;
+  const eventId = req.params.id;
+  const { status, activation_type, partner, continent, staffing } = req.body;
+  
+  const updateFields = [];
+  const queryValues = [];
+  let paramCounter = 1;
+
+  if (status !== undefined) {
+    updateFields.push(`status = $${paramCounter++}`);
+    queryValues.push(status);
+  }
+  if (activation_type !== undefined) {
+    updateFields.push(`activation_type = $${paramCounter++}`);
+    queryValues.push(activation_type);
+  }
+  if (partner !== undefined) {
+    updateFields.push(`partner = $${paramCounter++}`);
+    queryValues.push(partner);
+  }
+  if (continent !== undefined) {
+    updateFields.push(`continent = $${paramCounter++}`);
+    queryValues.push(continent);
+  }
+  if (staffing !== undefined) {
+    updateFields.push(`staffing = $${paramCounter++}`);
+    queryValues.push(staffing);
+  }
+  
+  if (updateFields.length === 0) {
+    return res.status(400).json({ msg: 'No fields to update.' });
+  }
+
+  const updateQuery = `
+    UPDATE events
+    SET ${updateFields.join(', ')}
+    WHERE event_id = $${paramCounter}
+    RETURNING *;
+  `;
+  queryValues.push(eventId);
+  
   try {
-    const updateQuery = `UPDATE events SET status = $1 WHERE event_id = $2 RETURNING *;`;
-    const { rows } = await db.query(updateQuery, [status, req.params.id]);
+    const { rows } = await db.query(updateQuery, queryValues);
     if (rows.length === 0) {
       return res.status(404).json({ msg: 'Event not found' });
     }
-    await logAction(req.user.id, 'event_updated', { eventId: req.params.id, eventName: rows[0].name });
+
+    // Corrected audit log message
+    const logMessage = `Updated event (ID: ${eventId}).`;
+    await logAction(req.user.id, 'event_updated', logMessage);
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// --- GET A SINGLE EVENT BY ITS ID ---
+router.get('/:eventId', protect, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT * FROM events WHERE event_id = $1', [req.params.eventId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ msg: 'Event not found' });
+    }
     res.json(rows[0]);
   } catch (err) {
     console.error(err.message);

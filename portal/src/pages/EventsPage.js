@@ -34,18 +34,31 @@ import {
   Td,
   useColorModeValue,
   useDisclosure,
+  MenuDivider
 } from '@chakra-ui/react';
 import { SearchIcon, CalendarIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { FaEllipsisV, FaList, FaPlus } from 'react-icons/fa';
 import EventCreationModal from '../components/EventCreationModal';
-import StatusManagementModal from '../components/StatusManagementModal'; // NEW MODAL
+import StatusManagementModal from '../components/StatusManagementModal';
+import ActivationTypeManagementModal from '../components/ActivationTypeManagementModal';
+import PartnerManagementModal from '../components/PartnerManagementModal';
+import ContinentManagementModal from '../components/ContinentManagementModal';
+import StaffingManagementModal from '../components/StaffingManagementModal';
 
 const EventsPage = () => {
   const [events, setEvents] = useState([]);
   const [customStatusOptions, setCustomStatusOptions] = useState([]);
+  const [activationTypeOptions, setActivationTypeOptions] = useState([]);
+  const [partnerOptions, setPartnerOptions] = useState([]);
+  const [continentOptions, setContinentOptions] = useState([]);
+  const [staffingOptions, setStaffingOptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { isOpen: isStatusModalOpen, onOpen: onStatusModalOpen, onClose: onStatusModalClose } = useDisclosure();
+  const { isOpen: isActivationModalOpen, onOpen: onActivationModalOpen, onClose: onActivationModalClose } = useDisclosure();
+  const { isOpen: isPartnerModalOpen, onOpen: onPartnerModalOpen, onClose: onPartnerModalClose } = useDisclosure();
+  const { isOpen: isContinentModalOpen, onOpen: onContinentModalOpen, onClose: onContinentModalClose } = useDisclosure();
+  const { isOpen: isStaffingModalOpen, onOpen: onStaffingModalOpen, onClose: onStaffingModalClose } = useDisclosure();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('list');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -96,35 +109,155 @@ const EventsPage = () => {
     }
   }, [toast]);
 
+  const fetchActivationTypeOptions = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      const res = await axios.get('/api/activation_types', { headers });
+      setActivationTypeOptions(res.data);
+    } catch (error) {
+      console.error('Failed to fetch activation types', error);
+      toast({
+        title: "Error loading activation types.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [toast]);
+
+  const fetchPartnerOptions = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      const res = await axios.get('/api/partners', { headers });
+      setPartnerOptions(res.data);
+    } catch (error) {
+      console.error('Failed to fetch partner options', error);
+      toast({
+        title: "Error loading partner options.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [toast]);
+
+  const fetchContinentOptions = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      const res = await axios.get('/api/continents', { headers });
+      setContinentOptions(res.data);
+    } catch (error) {
+      console.error('Failed to fetch continent options', error);
+      toast({
+        title: "Error loading continent options.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [toast]);
+
+  const fetchStaffingOptions = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      const res = await axios.get('/api/staffing', { headers });
+      setStaffingOptions(res.data);
+    } catch (error) {
+      console.error('Failed to fetch staffing options', error);
+      toast({
+        title: "Error loading staffing options.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [toast]);
+
   useEffect(() => {
     fetchEvents();
     fetchCustomStatusOptions();
-  }, [fetchEvents, fetchCustomStatusOptions]);
+    fetchActivationTypeOptions();
+    fetchPartnerOptions();
+    fetchContinentOptions();
+    fetchStaffingOptions();
+  }, [fetchEvents, fetchCustomStatusOptions, fetchActivationTypeOptions, fetchPartnerOptions, fetchContinentOptions, fetchStaffingOptions]);
 
   const updateEventStatus = async (eventId, newStatus) => {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
-  
-      await axios.put(`/api/events/${eventId}`, { status: newStatus }, { headers });
-  
-      toast({
-        title: "Status Updated.",
-        description: `Event status changed to ${newStatus}.`,
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+      const eventToUpdate = events.find(event => event.event_id === eventId);
+      if (!eventToUpdate) return;
+      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, status: newStatus }, { headers });
+      toast({ title: "Status Updated.", description: `Event status changed to ${newStatus}.`, status: "success", duration: 3000, isClosable: true });
       fetchEvents();
     } catch (error) {
       console.error('Update Failed:', error);
-      toast({
-        title: "Update Failed.",
-        description: "Could not update event status.",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
+      toast({ title: "Update Failed.", description: "Could not update event status.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
+
+  const updateEventActivationType = async (eventId, newType) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      const eventToUpdate = events.find(event => event.event_id === eventId);
+      if (!eventToUpdate) return;
+      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, activation_type: newType }, { headers });
+      toast({ title: "Activation Type Updated.", description: `Event activation type changed to ${newType}.`, status: "success", duration: 3000, isClosable: true });
+      fetchEvents();
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update event activation type.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
+
+  const updateEventPartner = async (eventId, newPartner) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      const eventToUpdate = events.find(event => event.event_id === eventId);
+      if (!eventToUpdate) return;
+      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, partner: newPartner }, { headers });
+      toast({ title: "Partner Updated.", description: `Event partner changed to ${newPartner}.`, status: "success", duration: 3000, isClosable: true });
+      fetchEvents();
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update event partner.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
+
+  const updateEventContinent = async (eventId, newContinent) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      const eventToUpdate = events.find(event => event.event_id === eventId);
+      if (!eventToUpdate) return;
+      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, continent: newContinent }, { headers });
+      toast({ title: "Continent Updated.", description: `Event continent changed to ${newContinent}.`, status: "success", duration: 3000, isClosable: true });
+      fetchEvents();
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update event continent.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
+
+  const updateEventStaffing = async (eventId, newStaffing) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      const eventToUpdate = events.find(event => event.event_id === eventId);
+      if (!eventToUpdate) return;
+      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, staffing: newStaffing }, { headers });
+      toast({ title: "Staffing Updated.", description: `Event staffing changed to ${newStaffing}.`, status: "success", duration: 3000, isClosable: true });
+      fetchEvents();
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update event staffing.", status: "error", duration: 5000, isClosable: true });
     }
   };
 
@@ -152,8 +285,28 @@ const EventsPage = () => {
   };
 
   const getStatusColor = (status) => {
-    const statusOption = customStatusOptions.find(opt => opt.label.toLowerCase() === status.toLowerCase());
+    const statusOption = customStatusOptions.find(opt => opt.label.toLowerCase() === status?.toLowerCase());
     return statusOption ? statusOption.color : 'gray';
+  };
+  
+  const getActivationColor = (type) => {
+    const typeOption = activationTypeOptions.find(opt => opt.label.toLowerCase() === type?.toLowerCase());
+    return typeOption ? typeOption.color : 'gray';
+  };
+
+  const getPartnerColor = (partner) => {
+    const partnerOption = partnerOptions.find(opt => opt.label.toLowerCase() === partner?.toLowerCase());
+    return partnerOption ? partnerOption.color : 'gray';
+  };
+
+  const getContinentColor = (continent) => {
+    const continentOption = continentOptions.find(opt => opt.label.toLowerCase() === continent?.toLowerCase());
+    return continentOption ? continentOption.color : 'gray';
+  };
+
+  const getStaffingColor = (staffing) => {
+    const staffingOption = staffingOptions.find(opt => opt.label.toLowerCase() === staffing?.toLowerCase());
+    return staffingOption ? staffingOption.color : 'gray';
   };
 
   const formatDateRange = (startDateString, endDateString) => {
@@ -176,8 +329,12 @@ const EventsPage = () => {
   };
 
   const capitalizeStatus = (status) => {
+    if (!status) return '';
     return status.split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
   };
+
+  const menuBg = useColorModeValue('white', 'gray.700');
+  const menuHoverBg = useColorModeValue('gray.100', 'gray.600');
 
   if (loading) {
     return (
@@ -251,9 +408,6 @@ const EventsPage = () => {
               <option key={option.id} value={option.label}>{capitalizeStatus(option.label)}</option>
             ))}
           </Select>
-          <Button onClick={onStatusModalOpen} size="lg" variant="outline">
-            Manage Statuses
-          </Button>
         </HStack>
 
         {viewMode === 'list' ? (
@@ -261,10 +415,14 @@ const EventsPage = () => {
             <Table variant="striped" colorScheme="gray">
               <Thead>
                 <Tr>
-                  <Th>Name</Th>
-                  <Th>Date</Th>
-                  <Th>Status</Th>
-                  <Th>Actions</Th>
+                  <Th w="25%">Name</Th>
+                  <Th w="15%">Date</Th>
+                  <Th w="8%">Status</Th>
+                  <Th w="8%">Activation Type</Th>
+                  <Th w="8%">Partner</Th>
+                  <Th w="8%">Continent</Th>
+                  <Th w="8%">Staffing</Th>
+                  <Th w="5%">Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -287,8 +445,7 @@ const EventsPage = () => {
                             color="white"
                             variant="solid"
                             size="sm"
-                            minW="120px"
-                            _hover={{ bg: getStatusColor(event.status) + '.600' }}
+                            minW="90px"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {capitalizeStatus(event.status)}
@@ -297,21 +454,184 @@ const EventsPage = () => {
                             <MenuList
                               onClick={(e) => e.stopPropagation()}
                               zIndex={9999}
-                              minW="120px"
-                              maxW="180px"
+                              minW="180px"
+                              maxW="250px"
                             >
                               {customStatusOptions.map(option => (
                                 <MenuItem
                                   key={option.id}
-                                  bg={option.color}
-                                  color="white"
-                                  fontWeight="bold"
-                                  _hover={{ bg: option.color + '.600' }}
+                                  bg={menuBg}
+                                  _hover={{ bg: menuHoverBg }}
                                   onClick={() => updateEventStatus(event.event_id, option.label)}
                                 >
-                                  {capitalizeStatus(option.label)}
+                                  <HStack spacing={3}>
+                                    <Box w="15px" h="15px" borderRadius="full" bg={option.color} />
+                                    <Text fontWeight="bold">{capitalizeStatus(option.label)}</Text>
+                                  </HStack>
                                 </MenuItem>
                               ))}
+                              <MenuDivider />
+                              <MenuItem onClick={onStatusModalOpen}>Manage Statuses</MenuItem>
+                            </MenuList>
+                          </Portal>
+                        </Menu>
+                      </Td>
+                      <Td>
+                        <Menu>
+                          <MenuButton
+                            as={Button}
+                            rightIcon={<ChevronDownIcon />}
+                            bg={getActivationColor(event.activation_type)}
+                            color="white"
+                            variant="solid"
+                            size="sm"
+                            minW="90px"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {capitalizeStatus(event.activation_type)}
+                          </MenuButton>
+                          <Portal>
+                            <MenuList
+                              onClick={(e) => e.stopPropagation()}
+                              zIndex={9999}
+                              minW="180px"
+                              maxW="250px"
+                            >
+                              {activationTypeOptions.map(option => (
+                                <MenuItem
+                                  key={option.id}
+                                  bg={menuBg}
+                                  _hover={{ bg: menuHoverBg }}
+                                  onClick={() => updateEventActivationType(event.event_id, option.label)}
+                                >
+                                  <HStack spacing={3}>
+                                    <Box w="15px" h="15px" borderRadius="full" bg={option.color} />
+                                    <Text fontWeight="bold">{capitalizeStatus(option.label)}</Text>
+                                  </HStack>
+                                </MenuItem>
+                              ))}
+                              <MenuDivider />
+                              <MenuItem onClick={onActivationModalOpen}>Manage Types</MenuItem>
+                            </MenuList>
+                          </Portal>
+                        </Menu>
+                      </Td>
+                      <Td>
+                        <Menu>
+                          <MenuButton
+                            as={Button}
+                            rightIcon={<ChevronDownIcon />}
+                            bg={getPartnerColor(event.partner)}
+                            color="white"
+                            variant="solid"
+                            size="sm"
+                            minW="90px"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {capitalizeStatus(event.partner)}
+                          </MenuButton>
+                          <Portal>
+                            <MenuList
+                              onClick={(e) => e.stopPropagation()}
+                              zIndex={9999}
+                              minW="180px"
+                              maxW="250px"
+                            >
+                              {partnerOptions.map(option => (
+                                <MenuItem
+                                  key={option.id}
+                                  bg={menuBg}
+                                  _hover={{ bg: menuHoverBg }}
+                                  onClick={() => updateEventPartner(event.event_id, option.label)}
+                                >
+                                  <HStack spacing={3}>
+                                    <Box w="15px" h="15px" borderRadius="full" bg={option.color} />
+                                    <Text fontWeight="bold">{capitalizeStatus(option.label)}</Text>
+                                  </HStack>
+                                </MenuItem>
+                              ))}
+                              <MenuDivider />
+                              <MenuItem onClick={onPartnerModalOpen}>Manage Partners</MenuItem>
+                            </MenuList>
+                          </Portal>
+                        </Menu>
+                      </Td>
+                      <Td>
+                        <Menu>
+                          <MenuButton
+                            as={Button}
+                            rightIcon={<ChevronDownIcon />}
+                            bg={getContinentColor(event.continent)}
+                            color="white"
+                            variant="solid"
+                            size="sm"
+                            minW="90px"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {capitalizeStatus(event.continent)}
+                          </MenuButton>
+                          <Portal>
+                            <MenuList
+                              onClick={(e) => e.stopPropagation()}
+                              zIndex={9999}
+                              minW="180px"
+                              maxW="250px"
+                            >
+                              {continentOptions.map(option => (
+                                <MenuItem
+                                  key={option.id}
+                                  bg={menuBg}
+                                  _hover={{ bg: menuHoverBg }}
+                                  onClick={() => updateEventContinent(event.event_id, option.label)}
+                                >
+                                  <HStack spacing={3}>
+                                    <Box w="15px" h="15px" borderRadius="full" bg={option.color} />
+                                    <Text fontWeight="bold">{capitalizeStatus(option.label)}</Text>
+                                  </HStack>
+                                </MenuItem>
+                              ))}
+                              <MenuDivider />
+                              <MenuItem onClick={onContinentModalOpen}>Manage Continents</MenuItem>
+                            </MenuList>
+                          </Portal>
+                        </Menu>
+                      </Td>
+                      <Td>
+                        <Menu>
+                          <MenuButton
+                            as={Button}
+                            rightIcon={<ChevronDownIcon />}
+                            bg={getStaffingColor(event.staffing)}
+                            color="white"
+                            variant="solid"
+                            size="sm"
+                            minW="90px"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {capitalizeStatus(event.staffing)}
+                          </MenuButton>
+                          <Portal>
+                            <MenuList
+                              onClick={(e) => e.stopPropagation()}
+                              zIndex={9999}
+                              minW="180px"
+                              maxW="250px"
+                            >
+                              {staffingOptions.map(option => (
+                                <MenuItem
+                                  key={option.id}
+                                  bg={menuBg}
+                                  _hover={{ bg: menuHoverBg }}
+                                  onClick={() => updateEventStaffing(event.event_id, option.label)}
+                                >
+                                  <HStack spacing={3}>
+                                    <Box w="15px" h="15px" borderRadius="full" bg={option.color} />
+                                    <Text fontWeight="bold">{capitalizeStatus(option.label)}</Text>
+                                  </HStack>
+                                </MenuItem>
+                              ))}
+                              <MenuDivider />
+                              <MenuItem onClick={onStaffingModalOpen}>Manage Staffing</MenuItem>
                             </MenuList>
                           </Portal>
                         </Menu>
@@ -330,7 +650,7 @@ const EventsPage = () => {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={4} textAlign="center">
+                    <Td colSpan={8} textAlign="center">
                       <Text color="gray.500">No events found.</Text>
                     </Td>
                   </Tr>
@@ -369,6 +689,34 @@ const EventsPage = () => {
           onClose={onStatusModalClose}
           customStatusOptions={customStatusOptions}
           fetchCustomStatusOptions={fetchCustomStatusOptions}
+        />
+        
+        <ActivationTypeManagementModal
+          isOpen={isActivationModalOpen}
+          onClose={onActivationModalClose}
+          activationTypes={activationTypeOptions}
+          fetchActivationTypes={fetchActivationTypeOptions}
+        />
+
+        <PartnerManagementModal
+          isOpen={isPartnerModalOpen}
+          onClose={onPartnerModalClose}
+          partners={partnerOptions}
+          fetchPartners={fetchPartnerOptions}
+        />
+
+        <ContinentManagementModal
+          isOpen={isContinentModalOpen}
+          onClose={onContinentModalClose}
+          continents={continentOptions}
+          fetchContinents={fetchContinentOptions}
+        />
+
+        <StaffingManagementModal
+          isOpen={isStaffingModalOpen}
+          onClose={onStaffingModalClose}
+          staffingOptions={staffingOptions}
+          fetchStaffingOptions={fetchStaffingOptions}
         />
       </VStack>
     </Box>

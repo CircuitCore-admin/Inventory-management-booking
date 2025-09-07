@@ -21,19 +21,19 @@ import {
 import axios from 'axios';
 import { FaTrash, FaPlus, FaCheck } from 'react-icons/fa';
 
-const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCustomStatusOptions }) => {
-  const [newStatusLabel, setNewStatusLabel] = useState('');
-  const [newStatusColor, setNewStatusColor] = useState('#5e6c84');
+const ActivationTypeManagementModal = ({ isOpen, onClose, activationTypes, fetchActivationTypes }) => {
+  const [newTypeLabel, setNewTypeLabel] = useState('');
+  const [newTypeColor, setNewTypeColor] = useState('#007bff');
   const toast = useToast();
 
   const predefinedColors = [
-    '#ffb300', '#5e6c84', '#36b37e', '#6554c0', '#ff5621', '#007bff', '#dc3545', '#28a745',
-    '#17a2b8', '#e83e8c', '#ff0000ff', '#20c997', '#fd7e14', '#6c757d', '#ffea00ff', '#343a40',
+    '#007bff', '#28a745', '#fd7e14', '#dc3545', '#6c757d', '#ffb300', '#6554c0', '#17a2b8',
+    '#e83e8c', '#6f42c1', '#f6f200ff', '#343a40', '#84a542ff', '#1adb1aff', '#ff0015ff', '#05e4c6ff',
   ];
 
-  const handleCreateStatus = async () => {
+  const handleCreateType = async () => {
     try {
-      if (!newStatusLabel) {
+      if (!newTypeLabel) {
         toast({
           title: "Label is required.",
           status: "error",
@@ -46,26 +46,26 @@ const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCust
       const headers = { 'x-auth-token': token };
 
       await axios.post(
-        '/api/event-status-options',
-        { label: newStatusLabel, color: newStatusColor },
+        '/api/activation_types',
+        { label: newTypeLabel, color: newTypeColor },
         { headers }
       );
 
       toast({
-        title: "Status added.",
-        description: `New status '${newStatusLabel}' has been created.`,
+        title: "Activation Type added.",
+        description: `New type '${newTypeLabel}' has been created.`,
         status: "success",
         duration: 3000,
         isClosable: true,
       });
-      setNewStatusLabel('');
-      setNewStatusColor('#5e6c84');
-      fetchCustomStatusOptions();
+      setNewTypeLabel('');
+      setNewTypeColor('#007bff');
+      fetchActivationTypes();
     } catch (error) {
-      console.error('Failed to create status', error);
+      console.error('Failed to create activation type', error);
       toast({
         title: "Creation failed.",
-        description: error.response?.data?.msg || "Could not add status.",
+        description: error.response?.data?.msg || "Could not add activation type.",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -73,25 +73,25 @@ const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCust
     }
   };
 
-  const handleDeleteStatus = async (statusId) => {
+  const handleDeleteType = async (typeId) => {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
       
-      await axios.delete(`/api/event-status-options/${statusId}`, { headers });
+      await axios.delete(`/api/activation_types/${typeId}`, { headers });
       
       toast({
-        title: "Status deleted.",
+        title: "Activation Type deleted.",
         status: "success",
         duration: 3000,
         isClosable: true,
       });
-      fetchCustomStatusOptions();
+      fetchActivationTypes();
     } catch (error) {
-      console.error('Failed to delete status', error);
+      console.error('Failed to delete activation type', error);
       toast({
         title: "Deletion failed.",
-        description: "Could not delete status.",
+        description: "Could not delete activation type.",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -103,40 +103,40 @@ const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCust
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Manage Status Labels</ModalHeader>
+        <ModalHeader>Manage Activation Types</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={4} align="stretch">
-            <Text fontSize="md" fontWeight="semibold">Existing Statuses:</Text>
-            {customStatusOptions.length > 0 ? (
+            <Text fontSize="md" fontWeight="semibold">Existing Activation Types:</Text>
+            {activationTypes.length > 0 ? (
               <VStack spacing={2} align="stretch">
-                {customStatusOptions.map(option => (
+                {activationTypes.map(option => (
                   <HStack key={option.id} justifyContent="space-between" p={2} bg="gray.100" borderRadius="md">
                     <HStack>
                       <Box w="20px" h="20px" borderRadius="full" bg={option.color} mr={2} />
                       <Text>{option.label}</Text>
                     </HStack>
                     <IconButton
-                      aria-label="Delete status"
+                      aria-label="Delete activation type"
                       icon={<FaTrash />}
                       size="sm"
                       colorScheme="red"
-                      onClick={() => handleDeleteStatus(option.id)}
+                      onClick={() => handleDeleteType(option.id)}
                     />
                   </HStack>
                 ))}
               </VStack>
             ) : (
-              <Text color="gray.500">No custom statuses found.</Text>
+              <Text color="gray.500">No custom activation types found.</Text>
             )}
 
-            <Text fontSize="md" fontWeight="semibold" mt={4}>Add New Status:</Text>
+            <Text fontSize="md" fontWeight="semibold" mt={4}>Add New Activation Type:</Text>
             <FormControl>
               <FormLabel>Label</FormLabel>
               <Input
-                value={newStatusLabel}
-                onChange={(e) => setNewStatusLabel(e.target.value)}
-                placeholder="Enter status label"
+                value={newTypeLabel}
+                onChange={(e) => setNewTypeLabel(e.target.value)}
+                placeholder="Enter type label"
               />
             </FormControl>
             <FormControl>
@@ -151,14 +151,14 @@ const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCust
                       borderRadius="md"
                       bg={color}
                       cursor="pointer"
-                      border={newStatusColor === color ? "2px solid white" : "none"}
+                      border={newTypeColor === color ? "2px solid white" : "none"}
                       boxShadow="md"
-                      onClick={() => setNewStatusColor(color)}
+                      onClick={() => setNewTypeColor(color)}
                       display="flex"
                       alignItems="center"
                       justifyContent="center"
                     >
-                      {newStatusColor === color && <FaCheck color="white" />}
+                      {newTypeColor === color && <FaCheck color="white" />}
                     </Box>
                   ))}
                 </HStack>
@@ -171,14 +171,14 @@ const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCust
                       borderRadius="md"
                       bg={color}
                       cursor="pointer"
-                      border={newStatusColor === color ? "2px solid white" : "none"}
+                      border={newTypeColor === color ? "2px solid white" : "none"}
                       boxShadow="md"
-                      onClick={() => setNewStatusColor(color)}
+                      onClick={() => setNewTypeColor(color)}
                       display="flex"
                       alignItems="center"
                       justifyContent="center"
                     >
-                      {newStatusColor === color && <FaCheck color="white" />}
+                      {newTypeColor === color && <FaCheck color="white" />}
                     </Box>
                   ))}
                 </HStack>
@@ -189,8 +189,8 @@ const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCust
               <HStack>
                 <Input
                   type="color"
-                  value={newStatusColor}
-                  onChange={(e) => setNewStatusColor(e.target.value)}
+                  value={newTypeColor}
+                  onChange={(e) => setNewTypeColor(e.target.value)}
                   w="40px"
                   h="40px"
                   p={1}
@@ -199,9 +199,9 @@ const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCust
                   borderRadius="md"
                 />
                 <Input
-                  value={newStatusColor}
-                  onChange={(e) => setNewStatusColor(e.target.value)}
-                  placeholder="e.g., #FF5733"
+                  value={newTypeColor}
+                  onChange={(e) => setNewTypeColor(e.target.value)}
+                  placeholder="e.g., #007bff"
                 />
               </HStack>
             </FormControl>
@@ -212,9 +212,9 @@ const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCust
           <Button
             leftIcon={<FaPlus />}
             colorScheme="blue"
-            onClick={handleCreateStatus}
+            onClick={handleCreateType}
           >
-            Add Status
+            Add Type
           </Button>
         </ModalFooter>
       </ModalContent>
@@ -222,4 +222,4 @@ const StatusManagementModal = ({ isOpen, onClose, customStatusOptions, fetchCust
   );
 };
 
-export default StatusManagementModal;
+export default ActivationTypeManagementModal;

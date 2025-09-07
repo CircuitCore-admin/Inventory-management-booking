@@ -42,6 +42,11 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/audit', require('./routes/audit'));
 app.use('/api/templates', require('./routes/templates'));
 app.use('/api/event-requests', require('./routes/event-requests'));
+app.use('/api/event-status-options', require('./routes/event-status-options'));
+app.use('/api/activation_types', require('./routes/activation-types'));
+app.use('/api/partners', require('./routes/partners'));
+app.use('/api/continents', require('./routes/continents'));
+app.use('/api/staffing', require('./routes/staffing'));
 
 // Basic route for testing
 app.get('/', (req, res) => res.send('API Running'));
