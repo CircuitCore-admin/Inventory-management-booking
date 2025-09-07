@@ -421,6 +421,7 @@ const EventsPage = () => {
                   <Th w="8%">Partner</Th>
                   <Th w="8%">Continent</Th>
                   <Th w="8%">Staffing</Th>
+                  <Th w="15%">Staff Member(s)</Th>
                   <Th w="5%">Actions</Th>
                 </Tr>
               </Thead>
@@ -640,6 +641,7 @@ const EventsPage = () => {
                           </Portal>
                         </Menu>
                       </Td>
+                      <Td>{/* TODO: Fetch and display staff members */}</Td>
                       <Td>
                         <Menu>
                           <MenuButton
@@ -663,7 +665,7 @@ const EventsPage = () => {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={8} textAlign="center">
+                    <Td colSpan={9} textAlign="center">
                       <Text color="gray.500">No events found.</Text>
                     </Td>
                   </Tr>
