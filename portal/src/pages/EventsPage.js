@@ -18,10 +18,6 @@ import {
   InputGroup,
   InputLeftElement,
   HStack,
-  Tag,
-  TagLabel,
-  Flex,
-  Spacer,
   Menu,
   MenuButton,
   MenuList,
@@ -36,16 +32,20 @@ import {
   Tr,
   Th,
   Td,
-  useColorModeValue
+  useColorModeValue,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { SearchIcon, CalendarIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { FaEllipsisV, FaList, FaPlus } from 'react-icons/fa';
 import EventCreationModal from '../components/EventCreationModal';
+import StatusManagementModal from '../components/StatusManagementModal'; // NEW MODAL
 
 const EventsPage = () => {
   const [events, setEvents] = useState([]);
+  const [customStatusOptions, setCustomStatusOptions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const { isOpen: isStatusModalOpen, onOpen: onStatusModalOpen, onClose: onStatusModalClose } = useDisclosure();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('list');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -79,22 +79,35 @@ const EventsPage = () => {
     }
   }, [toast, filterStatus]);
 
+  const fetchCustomStatusOptions = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      const res = await axios.get('/api/event-status-options', { headers });
+      setCustomStatusOptions(res.data);
+    } catch (error) {
+      console.error('Failed to fetch status options', error);
+      toast({
+        title: "Error loading status options.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  }, [toast]);
+
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents]);
+    fetchCustomStatusOptions();
+  }, [fetchEvents, fetchCustomStatusOptions]);
 
   const updateEventStatus = async (eventId, newStatus) => {
     try {
-      const eventToUpdate = events.find(event => event.event_id === eventId);
-      if (!eventToUpdate) {
-        throw new Error("Event not found in state.");
-      }
-
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
-
-      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, status: newStatus }, { headers });
-
+  
+      await axios.put(`/api/events/${eventId}`, { status: newStatus }, { headers });
+  
       toast({
         title: "Status Updated.",
         description: `Event status changed to ${newStatus}.`,
@@ -119,7 +132,7 @@ const EventsPage = () => {
     return events.filter(event =>
       event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       event.location.toLowerCase().includes(searchTerm.toLowerCase())
-    ).sort((a, b) => new Date(a.start_date) - new Date(b.start_date)) // Sorting by date
+    ).sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
     .map(event => ({
       id: event.event_id,
       title: event.name,
@@ -135,31 +148,31 @@ const EventsPage = () => {
   };
 
   const handleCreateEvent = () => {
-    setShowModal(true);
+    setShowCreateModal(true);
   };
 
   const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'approved':
-        return 'teal';
-      case 'in progress':
-        return 'blue';
-      case 'pending':
-        return 'orange';
-      case 'completed':
-        return 'purple';
-      case 'cancelled':
-        return 'red';
-      default:
-        return 'gray';
-    }
+    const statusOption = customStatusOptions.find(opt => opt.label.toLowerCase() === status.toLowerCase());
+    return statusOption ? statusOption.color : 'gray';
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' };
-    return new Intl.DateTimeFormat('en-US', options).format(date);
+  const formatDateRange = (startDateString, endDateString) => {
+    if (!startDateString || !endDateString) return 'N/A';
+    const startDate = new Date(startDateString);
+    const endDate = new Date(endDateString);
+    
+    if (startDate.toDateString() === endDate.toDateString()) {
+      const options = { day: 'numeric', month: 'short', year: 'numeric' };
+      return new Intl.DateTimeFormat('en-US', options).format(startDate);
+    }
+    
+    const startOptions = { day: 'numeric', month: 'short' };
+    const endOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+    
+    const formattedStartDate = new Intl.DateTimeFormat('en-US', startOptions).format(startDate);
+    const formattedEndDate = new Intl.DateTimeFormat('en-US', endOptions).format(endDate);
+    
+    return `${formattedStartDate} - ${formattedEndDate}`;
   };
 
   const capitalizeStatus = (status) => {
@@ -234,12 +247,13 @@ const EventsPage = () => {
             size="lg"
           >
             <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="in progress">In Progress</option>
-            <option value="approved">Approved</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
+            {customStatusOptions.map(option => (
+              <option key={option.id} value={option.label}>{capitalizeStatus(option.label)}</option>
+            ))}
           </Select>
+          <Button onClick={onStatusModalOpen} size="lg" variant="outline">
+            Manage Statuses
+          </Button>
         </HStack>
 
         {viewMode === 'list' ? (
@@ -248,9 +262,7 @@ const EventsPage = () => {
               <Thead>
                 <Tr>
                   <Th>Name</Th>
-                  <Th>Location</Th>
-                  <Th>Start Date</Th>
-                  <Th>End Date</Th>
+                  <Th>Date</Th>
                   <Th>Status</Th>
                   <Th>Actions</Th>
                 </Tr>
@@ -260,20 +272,23 @@ const EventsPage = () => {
                   filteredEvents.map(event => (
                     <Tr key={event.event_id}>
                       <Td>
-                        <Text fontWeight="bold">{event.name}</Text>
+                        <VStack align="start" spacing={0}>
+                          <Text fontWeight="bold">{event.name}</Text>
+                          <Text fontSize="sm" color="gray.500">{event.location}</Text>
+                        </VStack>
                       </Td>
-                      <Td>{event.location}</Td>
-                      <Td>{formatDate(event.start_date)}</Td>
-                      <Td>{formatDate(event.end_date)}</Td>
+                      <Td>{formatDateRange(event.start_date, event.end_date)}</Td>
                       <Td>
                         <Menu>
                           <MenuButton
                             as={Button}
                             rightIcon={<ChevronDownIcon />}
-                            colorScheme={getStatusColor(event.status)}
+                            bg={getStatusColor(event.status)}
+                            color="white"
                             variant="solid"
                             size="sm"
                             minW="120px"
+                            _hover={{ bg: getStatusColor(event.status) + '.600' }}
                             onClick={(e) => e.stopPropagation()}
                           >
                             {capitalizeStatus(event.status)}
@@ -285,51 +300,18 @@ const EventsPage = () => {
                               minW="120px"
                               maxW="180px"
                             >
-                              <MenuItem
-                                bg={getStatusColor('pending') + '.500'}
-                                color="white"
-                                _hover={{ bg: getStatusColor('pending') + '.600' }}
-                                fontWeight="bold"
-                                onClick={() => updateEventStatus(event.event_id, 'pending')}
-                              >
-                                Pending
-                              </MenuItem>
-                              <MenuItem
-                                bg={getStatusColor('in progress') + '.500'}
-                                color="white"
-                                _hover={{ bg: getStatusColor('in progress') + '.600' }}
-                                fontWeight="bold"
-                                onClick={() => updateEventStatus(event.event_id, 'in progress')}
-                              >
-                                In Progress
-                              </MenuItem>
-                              <MenuItem
-                                bg={getStatusColor('approved') + '.500'}
-                                color="white"
-                                _hover={{ bg: getStatusColor('approved') + '.600' }}
-                                fontWeight="bold"
-                                onClick={() => updateEventStatus(event.event_id, 'approved')}
-                              >
-                                Approved
-                              </MenuItem>
-                              <MenuItem
-                                bg={getStatusColor('completed') + '.500'}
-                                color="white"
-                                _hover={{ bg: getStatusColor('completed') + '.600' }}
-                                fontWeight="bold"
-                                onClick={() => updateEventStatus(event.event_id, 'completed')}
-                              >
-                                Completed
-                              </MenuItem>
-                              <MenuItem
-                                bg={getStatusColor('cancelled') + '.500'}
-                                color="white"
-                                _hover={{ bg: getStatusColor('cancelled') + '.600' }}
-                                fontWeight="bold"
-                                onClick={() => updateEventStatus(event.event_id, 'cancelled')}
-                              >
-                                Cancelled
-                              </MenuItem>
+                              {customStatusOptions.map(option => (
+                                <MenuItem
+                                  key={option.id}
+                                  bg={option.color}
+                                  color="white"
+                                  fontWeight="bold"
+                                  _hover={{ bg: option.color + '.600' }}
+                                  onClick={() => updateEventStatus(event.event_id, option.label)}
+                                >
+                                  {capitalizeStatus(option.label)}
+                                </MenuItem>
+                              ))}
                             </MenuList>
                           </Portal>
                         </Menu>
@@ -348,7 +330,7 @@ const EventsPage = () => {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={6} textAlign="center">
+                    <Td colSpan={4} textAlign="center">
                       <Text color="gray.500">No events found.</Text>
                     </Td>
                   </Tr>
@@ -374,12 +356,19 @@ const EventsPage = () => {
         )}
 
         <EventCreationModal
-          isOpen={showModal}
-          onClose={() => setShowModal(false)}
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
           onCreationSuccess={() => {
-            setShowModal(false);
+            setShowCreateModal(false);
             fetchEvents();
           }}
+        />
+
+        <StatusManagementModal
+          isOpen={isStatusModalOpen}
+          onClose={onStatusModalClose}
+          customStatusOptions={customStatusOptions}
+          fetchCustomStatusOptions={fetchCustomStatusOptions}
         />
       </VStack>
     </Box>
