@@ -1,2 +1,2 @@
-# Williams Inventory
+# Inventory Management Bookings
 
