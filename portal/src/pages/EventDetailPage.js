@@ -190,8 +190,14 @@ const EventDetailPage = () => {
       const headers = { 'x-auth-token': token };
       await axios.put(`/api/events/${eventId}/allocated-items/${itemId}`, { pickup_location: editedLocation }, { headers });
       
+      // Update state directly instead of re-fetching all data
+      setBookedItems(prevItems =>
+        prevItems.map(item =>
+          item.item_id === itemId ? { ...item, pickup_location: editedLocation } : item
+        )
+      );
+
       setEditingItemId(null);
-      fetchEventDetails();
       toast({
         title: 'Location Updated.',
         description: 'The pickup location has been updated.',
@@ -208,6 +214,12 @@ const EventDetailPage = () => {
         duration: 5000,
         isClosable: true,
       });
+    }
+  };
+
+  const handleKeyPress = (e, itemId) => {
+    if (e.key === 'Enter') {
+      handleSaveLocation(itemId);
     }
   };
 
@@ -330,6 +342,7 @@ const EventDetailPage = () => {
                         <Input
                           value={editedLocation}
                           onChange={(e) => setEditedLocation(e.target.value)}
+                          onKeyDown={(e) => handleKeyPress(e, item.item_id)}
                           size="sm"
                         />
                         <Button
