@@ -5,10 +5,11 @@ const db = require('../db');
 const { protect, adminOnly, authorize } = require('../middleware/auth');
 const { logAction } = require('../services/auditLog');
 
-// --- GET ALL APPROVED EVENTS for the calendar ---
+// --- GET ALL EVENTS ---
 router.get('/', protect, async (req, res) => {
   try {
-    const { rows } = await db.query("SELECT * FROM events WHERE status = 'approved' ORDER BY start_date DESC");
+    // Corrected: Removed the WHERE clause to fetch all events regardless of status
+    const { rows } = await db.query("SELECT * FROM events ORDER BY start_date DESC");
     res.json(rows);
   } catch (err) {
     console.error(err.message);
@@ -162,6 +163,24 @@ router.post('/:eventId/allocate-items', protect, async (req, res) => {
     }
 });
 
+// CORRECTED ROUTE: POST /api/events
+// This route now correctly handles the 'notes' field.
+router.post('/', protect, async (req, res) => {
+    const { name, location, start_date, end_date, notes } = req.body;
+    try {
+        const queryText = `
+            INSERT INTO events (name, location, start_date, end_date, notes, requested_by_user_id)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *;
+        `;
+        const { rows } = await db.query(queryText, [name, location, start_date, end_date, notes, req.user.id]);
+        await logAction(req.user.id, 'event_created', { eventId: rows[0].event_id, eventName: rows[0].name });
+        res.status(201).json(rows[0]);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server Error');
+    }
+});
 
 // --- DELETE AN EVENT ---
 router.delete('/:id', protect, adminOnly, async (req, res) => {

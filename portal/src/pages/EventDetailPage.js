@@ -34,6 +34,7 @@ const EventDetailPage = () => {
   const navigate = useNavigate();
   const [event, setEvent] = useState(null);
   const [bookedItems, setBookedItems] = useState([]);
+  const [timeline, setTimeline] = useState([]); // State for timeline data
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
@@ -53,14 +54,16 @@ const EventDetailPage = () => {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
 
-      const [eventRes, bookedItemsRes] = await Promise.all([
+      const [eventRes, bookedItemsRes, timelineRes] = await Promise.all([
         axios.get(`/api/events/${eventId}`, { headers }),
-        axios.get(`/api/events/${eventId}/allocated-items`, { headers })
+        axios.get(`/api/events/${eventId}/allocated-items`, { headers }),
+        axios.get(`/api/audit/event/${eventId}`, { headers })
       ]);
 
       setEvent(eventRes.data);
       setFormData(eventRes.data);
       setBookedItems(bookedItemsRes.data);
+      setTimeline(timelineRes.data);
     } catch (error) {
       console.error('Failed to fetch event details:', error);
       toast({
@@ -90,11 +93,9 @@ const EventDetailPage = () => {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
-      // CORRECTED: Send the entire formData object with the updated status
       const updatedFormData = { ...formData, status: newStatus };
       await axios.put(`/api/events/${eventId}`, updatedFormData, { headers });
       
-      // Update state directly for a snappier UI
       setFormData(updatedFormData);
 
       toast({
@@ -113,7 +114,6 @@ const EventDetailPage = () => {
         duration: 5000,
         isClosable: true,
       });
-      // Re-fetch to revert to the correct state if the update failed
       fetchEventDetails(); 
     }
   };
@@ -214,7 +214,6 @@ const EventDetailPage = () => {
       const headers = { 'x-auth-token': token };
       await axios.put(`/api/events/${eventId}/allocated-items/${itemId}`, { pickup_location: editedLocation }, { headers });
       
-      // Update state directly instead of re-fetching all data
       setBookedItems(prevItems =>
         prevItems.map(item =>
           item.item_id === itemId ? { ...item, pickup_location: editedLocation } : item
@@ -409,6 +408,26 @@ const EventDetailPage = () => {
       </TableContainer>
 
       <Divider my={6} />
+
+      <Heading size="lg" mb={4}>Event Timeline</Heading>
+      <VStack align="start" spacing={3}>
+        {timeline.length > 0 ? (
+          timeline.map((entry, index) => (
+            <Box key={index} p={3} borderWidth="1px" borderRadius="md" w="100%">
+              <HStack justifyContent="space-between">
+                <Text fontWeight="bold">{entry.action}</Text>
+                <Text fontSize="sm" color="gray.500">{new Date(entry.created_at).toLocaleString()}</Text>
+              </HStack>
+              <Text fontSize="sm" mt={1}>
+                {entry.actor_full_name ? entry.actor_full_name : 'System'}
+                {entry.details && `: ${JSON.stringify(entry.details)}`}
+              </Text>
+            </Box>
+          ))
+        ) : (
+          <Text>No timeline events to display.</Text>
+        )}
+      </VStack>
       
       {isAllocationModalOpen && (
         <ItemAllocationModal 
@@ -437,7 +456,10 @@ const EventDetailPage = () => {
             </AlertDialogBody>
 
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={handleDelete} ml={3}>
+              <Button ref={cancelRef} onClick={onCloseDeleteAlert}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleDelete} ml={3}>
                 Delete
               </Button>
             </AlertDialogFooter>
