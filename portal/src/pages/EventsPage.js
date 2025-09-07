@@ -22,8 +22,6 @@ import {
   TagLabel,
   Flex,
   Spacer,
-  Card,
-  CardBody,
   Menu,
   MenuButton,
   MenuList,
@@ -31,9 +29,17 @@ import {
   IconButton,
   Select,
   Portal,
+  TableContainer,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  useColorModeValue
 } from '@chakra-ui/react';
 import { SearchIcon, CalendarIcon, ChevronDownIcon } from '@chakra-ui/icons';
-import { FaEllipsisV, FaList } from 'react-icons/fa';
+import { FaEllipsisV, FaList, FaPlus } from 'react-icons/fa';
 import EventCreationModal from '../components/EventCreationModal';
 
 const EventsPage = () => {
@@ -45,6 +51,9 @@ const EventsPage = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const toast = useToast();
   const navigate = useNavigate();
+
+  const tableBg = useColorModeValue('white', 'gray.700');
+  const pageBg = useColorModeValue('gray.50', 'gray.800');
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -58,6 +67,7 @@ const EventsPage = () => {
       setEvents(res.data);
       setLoading(false);
     } catch (error) {
+      console.error('Failed to fetch events', error);
       toast({
         title: "Error loading events.",
         description: error.response?.data?.msg || "Unable to fetch events.",
@@ -79,13 +89,12 @@ const EventsPage = () => {
       if (!eventToUpdate) {
         throw new Error("Event not found in state.");
       }
-  
+
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
-  
-      // Send the entire event object with the updated status
+
       await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, status: newStatus }, { headers });
-  
+
       toast({
         title: "Status Updated.",
         description: `Event status changed to ${newStatus}.`,
@@ -110,13 +119,14 @@ const EventsPage = () => {
     return events.filter(event =>
       event.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       event.location.toLowerCase().includes(searchTerm.toLowerCase())
-    ).map(event => ({
-        id: event.event_id,
-        title: event.name,
-        start: event.start_date,
-        end: event.end_date,
-        allDay: true,
-        ...event
+    ).sort((a, b) => new Date(a.start_date) - new Date(b.start_date)) // Sorting by date
+    .map(event => ({
+      id: event.event_id,
+      title: event.name,
+      start: event.start_date,
+      end: event.end_date,
+      allDay: true,
+      ...event
     }));
   }, [events, searchTerm]);
 
@@ -129,9 +139,9 @@ const EventsPage = () => {
   };
 
   const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase()) {
       case 'approved':
-        return 'green';
+        return 'teal';
       case 'in progress':
         return 'blue';
       case 'pending':
@@ -145,147 +155,234 @@ const EventsPage = () => {
     }
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' };
+    return new Intl.DateTimeFormat('en-US', options).format(date);
+  };
+
+  const capitalizeStatus = (status) => {
+    return status.split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+  };
+
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-        <Spinner size="xl" />
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh" bg={pageBg}>
+        <Spinner size="xl" color="blue.500" />
       </Box>
     );
   }
 
   return (
-    <VStack spacing={4} align="stretch">
-      <HStack justifyContent="space-between">
-        <Heading>Events</Heading>
-        <HStack>
-            <IconButton
-                icon={<FaList />}
-                aria-label="List View"
-                onClick={() => setViewMode('list')}
-                colorScheme={viewMode === 'list' ? 'blue' : 'gray'}
-            />
-            <IconButton
-                icon={<CalendarIcon />}
-                aria-label="Calendar View"
-                onClick={() => setViewMode('calendar')}
-                colorScheme={viewMode === 'calendar' ? 'blue' : 'gray'}
-            />
-            <Button colorScheme="blue" onClick={handleCreateEvent}>
-                Create New Event
+    <Box p={{ base: 4, md: 8 }} bg={pageBg} minH="100vh">
+      <VStack spacing={{ base: 6, md: 8 }} align="stretch">
+        <HStack justifyContent="space-between" alignItems="center" flexWrap="wrap">
+          <Heading size={{ base: 'lg', md: 'xl' }} fontWeight="bold" color="gray.800">Events Dashboard</Heading>
+          <HStack spacing={4} mt={{ base: 4, md: 0 }}>
+            <Button
+              colorScheme="blue"
+              onClick={handleCreateEvent}
+              size="lg"
+              leftIcon={<FaPlus />}
+              boxShadow="md"
+              _hover={{ boxShadow: 'lg' }}
+            >
+              Add New Event
             </Button>
+            <IconButton
+              icon={<FaList />}
+              aria-label="List View"
+              onClick={() => setViewMode('list')}
+              colorScheme={viewMode === 'list' ? 'blue' : 'gray'}
+              variant="solid"
+              size="lg"
+            />
+            <IconButton
+              icon={<CalendarIcon />}
+              aria-label="Calendar View"
+              onClick={() => setViewMode('calendar')}
+              colorScheme={viewMode === 'calendar' ? 'blue' : 'gray'}
+              variant="solid"
+              size="lg"
+            />
+          </HStack>
         </HStack>
-      </HStack>
-      <HStack>
-        <InputGroup flex="1">
-          <InputLeftElement
-            pointerEvents="none"
-            children={<SearchIcon color="gray.300" />}
-          />
-          <Input
-            placeholder="Search events..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </InputGroup>
-        <Select
-          width="200px"
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-        >
-          <option value="all">All Statuses</option>
-          <option value="approved">Approved</option>
-          <option value="pending">Pending</option>
-          <option value="in progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </Select>
-      </HStack>
-      
-      {viewMode === 'list' ? (
-        <VStack spacing={4} align="stretch">
-          {filteredEvents.length > 0 ? (
-            filteredEvents.map(event => (
-              <Card
-                key={event.event_id}
-                onClick={() => handleEventClick(event.event_id)}
-                cursor="pointer"
-                _hover={{ transform: 'scale(1.01)', transition: '0.2s', boxShadow: 'lg' }}
-              >
-                <CardBody p={4} position="relative">
-                  <Box
-                    position="absolute"
-                    left="0"
-                    top="0"
-                    bottom="0"
-                    width="5px"
-                    bg={`${getStatusColor(event.status)}.500`}
-                    borderLeftRadius="md"
-                  />
-                  <Flex direction={{ base: 'column', md: 'row' }} pl={3}>
-                    <VStack align="start" flex="1">
-                      <Heading size="sm">{event.name}</Heading>
-                      <Text fontSize="sm" color="gray.500">{event.location}</Text>
-                    </VStack>
-                    <Spacer />
-                    <HStack spacing={4} mt={{ base: 2, md: 0 }}>
-                      <Text>{new Date(event.start_date).toLocaleDateString()} - {new Date(event.end_date).toLocaleDateString()}</Text>
-                      <Menu>
-                        <MenuButton as={Tag} size="md" colorScheme={getStatusColor(event.status)} borderRadius="full" cursor="pointer" onClick={(e) => e.stopPropagation()}>
-                          <TagLabel>{event.status}</TagLabel>
-                          <ChevronDownIcon />
-                        </MenuButton>
-                        <Portal>
-                          <MenuList onClick={(e) => e.stopPropagation()} zIndex={9999}>
-                            <MenuItem onClick={() => updateEventStatus(event.event_id, 'approved')}>Approved</MenuItem>
-                            <MenuItem onClick={() => updateEventStatus(event.event_id, 'in progress')}>In Progress</MenuItem>
-                            <MenuItem onClick={() => updateEventStatus(event.event_id, 'completed')}>Completed</MenuItem>
-                            <MenuItem onClick={() => updateEventStatus(event.event_id, 'cancelled')}>Cancelled</MenuItem>
-                            <MenuItem onClick={() => updateEventStatus(event.event_id, 'pending')}>Pending</MenuItem>
-                          </MenuList>
-                        </Portal>
-                      </Menu>
-                      <Menu>
-                        <MenuButton as={IconButton} icon={<FaEllipsisV />} variant="ghost" onClick={(e) => e.stopPropagation()} />
-                        <MenuList onClick={(e) => e.stopPropagation()}>
-                          <MenuItem onClick={() => navigate(`/event-details/${event.event_id}`)}>View Details</MenuItem>
-                        </MenuList>
-                      </Menu>
-                    </HStack>
-                  </Flex>
-                </CardBody>
-              </Card>
-            ))
-          ) : (
-            <Box p={4} borderWidth="1px" borderRadius="lg" textAlign="center" bg="white">
-              <Text color="gray.500">No events found.</Text>
-            </Box>
-          )}
-        </VStack>
-      ) : (
-        <Box p={4} borderWidth="1px" borderRadius="lg" bg="white">
-          <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
-            }}
-            events={filteredEvents}
-            eventClick={(info) => handleEventClick(info.event.id)}
-          />
-        </Box>
-      )}
 
-      <EventCreationModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        onCreationSuccess={() => {
-          setShowModal(false);
-          fetchEvents();
-        }}
-      />
-    </VStack>
+        <HStack spacing={4} flexWrap="wrap">
+          <InputGroup flex="1" size="lg">
+            <InputLeftElement
+              pointerEvents="none"
+              children={<SearchIcon color="gray.400" />}
+            />
+            <Input
+              placeholder="Search by name or location..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              bg={tableBg}
+              borderRadius="lg"
+              boxShadow="sm"
+            />
+          </InputGroup>
+          <Select
+            width={{ base: '100%', md: '200px' }}
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            bg={tableBg}
+            borderRadius="lg"
+            boxShadow="sm"
+            size="lg"
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="in progress">In Progress</option>
+            <option value="approved">Approved</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </Select>
+        </HStack>
+
+        {viewMode === 'list' ? (
+          <TableContainer bg={tableBg} borderWidth="1px" borderRadius="lg" boxShadow="sm">
+            <Table variant="striped" colorScheme="gray">
+              <Thead>
+                <Tr>
+                  <Th>Name</Th>
+                  <Th>Location</Th>
+                  <Th>Start Date</Th>
+                  <Th>End Date</Th>
+                  <Th>Status</Th>
+                  <Th>Actions</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {filteredEvents.length > 0 ? (
+                  filteredEvents.map(event => (
+                    <Tr key={event.event_id}>
+                      <Td>
+                        <Text fontWeight="bold">{event.name}</Text>
+                      </Td>
+                      <Td>{event.location}</Td>
+                      <Td>{formatDate(event.start_date)}</Td>
+                      <Td>{formatDate(event.end_date)}</Td>
+                      <Td>
+                        <Menu>
+                          <MenuButton
+                            as={Button}
+                            rightIcon={<ChevronDownIcon />}
+                            colorScheme={getStatusColor(event.status)}
+                            variant="solid"
+                            size="sm"
+                            minW="120px"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {capitalizeStatus(event.status)}
+                          </MenuButton>
+                          <Portal>
+                            <MenuList
+                              onClick={(e) => e.stopPropagation()}
+                              zIndex={9999}
+                              minW="120px"
+                              maxW="180px"
+                            >
+                              <MenuItem
+                                bg={getStatusColor('pending') + '.500'}
+                                color="white"
+                                _hover={{ bg: getStatusColor('pending') + '.600' }}
+                                fontWeight="bold"
+                                onClick={() => updateEventStatus(event.event_id, 'pending')}
+                              >
+                                Pending
+                              </MenuItem>
+                              <MenuItem
+                                bg={getStatusColor('in progress') + '.500'}
+                                color="white"
+                                _hover={{ bg: getStatusColor('in progress') + '.600' }}
+                                fontWeight="bold"
+                                onClick={() => updateEventStatus(event.event_id, 'in progress')}
+                              >
+                                In Progress
+                              </MenuItem>
+                              <MenuItem
+                                bg={getStatusColor('approved') + '.500'}
+                                color="white"
+                                _hover={{ bg: getStatusColor('approved') + '.600' }}
+                                fontWeight="bold"
+                                onClick={() => updateEventStatus(event.event_id, 'approved')}
+                              >
+                                Approved
+                              </MenuItem>
+                              <MenuItem
+                                bg={getStatusColor('completed') + '.500'}
+                                color="white"
+                                _hover={{ bg: getStatusColor('completed') + '.600' }}
+                                fontWeight="bold"
+                                onClick={() => updateEventStatus(event.event_id, 'completed')}
+                              >
+                                Completed
+                              </MenuItem>
+                              <MenuItem
+                                bg={getStatusColor('cancelled') + '.500'}
+                                color="white"
+                                _hover={{ bg: getStatusColor('cancelled') + '.600' }}
+                                fontWeight="bold"
+                                onClick={() => updateEventStatus(event.event_id, 'cancelled')}
+                              >
+                                Cancelled
+                              </MenuItem>
+                            </MenuList>
+                          </Portal>
+                        </Menu>
+                      </Td>
+                      <Td>
+                        <IconButton
+                          icon={<FaEllipsisV />}
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEventClick(event.event_id);
+                          }}
+                        />
+                      </Td>
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td colSpan={6} textAlign="center">
+                      <Text color="gray.500">No events found.</Text>
+                    </Td>
+                  </Tr>
+                )}
+              </Tbody>
+            </Table>
+          </TableContainer>
+        ) : (
+          <Box p={4} borderWidth="1px" borderRadius="lg" bg={tableBg} boxShadow="sm">
+            <FullCalendar
+              plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+              }}
+              events={filteredEvents}
+              eventClick={(info) => handleEventClick(info.event.id)}
+              height="auto"
+            />
+          </Box>
+        )}
+
+        <EventCreationModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          onCreationSuccess={() => {
+            setShowModal(false);
+            fetchEvents();
+          }}
+        />
+      </VStack>
+    </Box>
   );
 };
 
