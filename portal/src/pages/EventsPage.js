@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Box, Heading, Spinner, useToast } from '@chakra-ui/react';
 import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
+import dayGridPlugin from '@fullcalendar/daygrid/index.js';
 import { useNavigate } from 'react-router-dom';
 
 const EventsPage = () => {

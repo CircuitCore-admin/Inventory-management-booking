@@ -26,4 +26,22 @@ router.get('/', protect, adminOnly, async (req, res) => {
     }
 });
 
+router.get('/event/:eventId', protect, async (req, res) => {
+    try {
+        const { eventId } = req.params;
+        const query = `
+            SELECT log_id, user_id, action, details, created_at, actor_full_name
+            FROM audit_logs
+            WHERE details::jsonb ->> 'eventId' = $1
+            OR details::jsonb -> 'itemIds' @> to_jsonb(ARRAY[$1]::text[])
+            ORDER BY created_at DESC;
+        `;
+        const { rows } = await db.query(query, [eventId]);
+        res.json(rows);
+    } catch (err) {
+        console.error('Failed to fetch audit logs for event:', err.message);
+        res.status(500).send('Server Error');
+    }
+});
+
 module.exports = router;

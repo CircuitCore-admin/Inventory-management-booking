@@ -18,7 +18,6 @@ router.get('/', protect, async (req, res) => {
 });
 
 // --- GET A SINGLE EVENT BY ITS ID ---
-// This is the only route that should handle getting a single event.
 router.get('/:eventId', protect, async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM events WHERE event_id = $1', [req.params.eventId]);
@@ -28,6 +27,25 @@ router.get('/:eventId', protect, async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// NEW ROUTE: GET all allocated items for a specific event
+router.get('/:eventId/allocated-items', protect, async (req, res) => {
+  try {
+    const query = `
+            SELECT ii.unique_identifier AS item_id, ii.name, ii.category
+            FROM allocated_items ai
+            JOIN inventory_items ii ON ai.item_id = ii.item_id
+            WHERE ai.event_id = $1
+            ORDER BY ii.name;
+        `;
+    // The query returns `item_id`, which is the unique identifier for the inventory item itself, not a general database ID for the booking record.
+    const { rows } = await db.query(query, [req.params.eventId]);
+    res.json(rows);
+  } catch (err) {
+    console.error('Failed to fetch allocated items:', err.message);
     res.status(500).send('Server Error');
   }
 });
