@@ -273,10 +273,46 @@ const EventsPage = () => {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
       await axios.put(`/api/events/${eventId}`, { staff_members: newStaffMembers }, { headers });
-      fetchEvents();
+      setEvents(prevEvents =>
+        prevEvents.map(event =>
+          event.event_id === eventId ? { ...event, staff_members: newStaffMembers } : event
+        )
+      );
     } catch (error) {
       console.error('Update Failed:', error);
       toast({ title: "Update Failed.", description: "Could not update staff members.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
+
+  const updateEventName = async (eventId, newName) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      await axios.put(`/api/events/${eventId}`, { name: newName }, { headers });
+      setEvents(prevEvents =>
+        prevEvents.map(event =>
+          event.event_id === eventId ? { ...event, name: newName } : event
+        )
+      );
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update event name.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
+
+  const updateEventLocation = async (eventId, newLocation) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      await axios.put(`/api/events/${eventId}`, { location: newLocation }, { headers });
+      setEvents(prevEvents =>
+        prevEvents.map(event =>
+          event.event_id === eventId ? { ...event, location: newLocation } : event
+        )
+      );
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update event location.", status: "error", duration: 5000, isClosable: true });
     }
   };
 
@@ -294,6 +330,13 @@ const EventsPage = () => {
     }));
   };
 
+  const handleStaffMembersChange = (eventId, value) => {
+    setStaffMembersInput(prev => ({
+      ...prev,
+      [eventId]: value
+    }));
+  };
+
   const handleNameBlur = (eventId, value) => {
     updateEventName(eventId, value);
   };
@@ -302,28 +345,8 @@ const EventsPage = () => {
     updateEventLocation(eventId, value);
   };
 
-  const updateEventName = async (eventId, newName) => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { 'x-auth-token': token };
-      await axios.put(`/api/events/${eventId}`, { name: newName }, { headers });
-      fetchEvents();
-    } catch (error) {
-      console.error('Update Failed:', error);
-      toast({ title: "Update Failed.", description: "Could not update event name.", status: "error", duration: 5000, isClosable: true });
-    }
-  };
-
-  const updateEventLocation = async (eventId, newLocation) => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { 'x-auth-token': token };
-      await axios.put(`/api/events/${eventId}`, { location: newLocation }, { headers });
-      fetchEvents();
-    } catch (error) {
-      console.error('Update Failed:', error);
-      toast({ title: "Update Failed.", description: "Could not update event location.", status: "error", duration: 5000, isClosable: true });
-    }
+  const handleStaffMembersBlur = (eventId, value) => {
+    updateEventStaffMembers(eventId, value);
   };
 
   const filteredEvents = useMemo(() => {
@@ -496,7 +519,7 @@ const EventsPage = () => {
                       cursor="pointer"
                       _hover={{ bg: rowHoverBg }}
                     >
-                      <Td onClick={() => handleEventClick(event.event_id)}>
+                      <Td>
                         <VStack align="start" spacing={0}>
                           <Input
                             value={nameInput[event.event_id] || ''}
@@ -505,7 +528,7 @@ const EventsPage = () => {
                             placeholder="Event Name"
                             size="sm"
                             fontWeight="bold"
-                            variant="unstyled" // Removed borders
+                            variant="unstyled"
                             onClick={(e) => e.stopPropagation()}
                           />
                           <Input
@@ -515,7 +538,7 @@ const EventsPage = () => {
                             placeholder="Location"
                             size="sm"
                             color="gray.500"
-                            variant="unstyled" // Removed borders
+                            variant="unstyled"
                             onClick={(e) => e.stopPropagation()}
                           />
                         </VStack>
@@ -724,8 +747,8 @@ const EventsPage = () => {
                       <Td>
                         <Input
                           value={staffMembersInput[event.event_id] || ''}
-                          onChange={(e) => setStaffMembersInput(prev => ({ ...prev, [event.event_id]: e.target.value }))}
-                          onBlur={(e) => updateEventStaffMembers(event.event_id, e.target.value)}
+                          onChange={(e) => handleStaffMembersChange(event.event_id, e.target.value)}
+                          onBlur={(e) => handleStaffMembersBlur(event.event_id, e.target.value)}
                           placeholder="Enter Staff Members"
                           size="sm"
                           onClick={(e) => e.stopPropagation()}
