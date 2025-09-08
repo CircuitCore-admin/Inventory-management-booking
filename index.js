@@ -41,7 +41,6 @@ app.use('/api/maintenance', require('./routes/maintenance'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/audit', require('./routes/audit'));
 app.use('/api/templates', require('./routes/templates'));
-app.use('/api/event-requests', require('./routes/event-requests'));
 app.use('/api/event-status-options', require('./routes/event-status-options'));
 app.use('/api/activation_types', require('./routes/activation-types'));
 app.use('/api/partners', require('./routes/partners'));

@@ -46,8 +46,6 @@ const MainLayout = () => {
     { text: 'Dashboard', path: '/dashboard' },
     { text: 'Inventory', path: '/inventory' },
     { text: 'Events', path: '/events' },
-    { text: 'Request Event', path: '/request-event' },
-    { text: 'Approve Events', path: '/approve-events' },
     { text: 'Bookings', path: '/bookings' },
     { text: 'Maintenance', path: '/maintenance' },
     { text: 'Audit', path: '/audit' },

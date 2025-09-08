@@ -9,8 +9,6 @@ import MainLayout from './components/MainLayout';
 import DashboardPage from './pages/DashboardPage';
 import InventoryPage from './pages/InventoryPage';
 import UserManagementPage from './pages/UserManagementPage';
-import EventRequestPage from './pages/EventRequestPage';
-import EventApprovalPage from './pages/EventApprovalPage';
 import EventsPage from './pages/EventsPage';
 import EventDetailPage from './pages/EventDetailPage';
 import BookingsPage from './pages/BookingPage';
@@ -34,8 +32,6 @@ function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/users" element={<UserManagementPage />} />
-              <Route path="/request-event" element={<EventRequestPage />} /> 
-              <Route path="/approve-events" element={<EventApprovalPage />} />
               <Route path="/events" element={<EventsPage />} />
               <Route path="/events/:eventId" element={<EventDetailPage />} />
               <Route path="/bookings" element={<BookingsPage />} /> {/* Link the new page to its route */}
