@@ -77,7 +77,7 @@ router.put('/:eventId/allocated-items/:itemId', protect, async (req, res) => {
 // CORRECTED ROUTE: UPDATE AN EXISTING EVENT
 router.put('/:id', protect, authorize('admin', 'management'), async (req, res) => {
   const eventId = req.params.id;
-  const { status, activation_type, partner, continent, staffing, staff_members, name, location } = req.body;
+  const { status, activation_type, partner, continent, staffing, staff_members, name, location, start_date, end_date } = req.body;
 
   const updateFields = [];
   const queryValues = [];
@@ -115,7 +115,15 @@ router.put('/:id', protect, authorize('admin', 'management'), async (req, res) =
     updateFields.push(`staff_members = $${paramCounter++}`);
     queryValues.push(staff_members);
   }
-  
+  if (start_date !== undefined) {
+    updateFields.push(`start_date = $${paramCounter++}`);
+    queryValues.push(start_date);
+  }
+  if (end_date !== undefined) {
+    updateFields.push(`end_date = $${paramCounter++}`);
+    queryValues.push(end_date);
+  }
+
   if (updateFields.length === 0) {
     return res.status(400).json({ msg: 'No fields to update.' });
   }
@@ -127,7 +135,7 @@ router.put('/:id', protect, authorize('admin', 'management'), async (req, res) =
     RETURNING *;
   `;
   queryValues.push(eventId);
-  
+
   try {
     const { rows } = await db.query(updateQuery, queryValues);
     if (rows.length === 0) {
