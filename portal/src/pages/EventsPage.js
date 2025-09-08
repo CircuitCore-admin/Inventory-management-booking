@@ -7,6 +7,9 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import '../styles/DatePicker.css'; // Import the new custom styles
 import {
   Box,
   Heading,
@@ -35,7 +38,15 @@ import {
   Td,
   useColorModeValue,
   useDisclosure,
-  MenuDivider
+  MenuDivider,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverArrow,
+  PopoverCloseButton,
+  PopoverBody,
+  Progress,
+  Icon,
 } from '@chakra-ui/react';
 import { SearchIcon, CalendarIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { FaEllipsisV, FaList, FaPlus } from 'react-icons/fa';
@@ -66,6 +77,8 @@ const EventsPage = () => {
   const [staffMembersInput, setStaffMembersInput] = useState({});
   const [nameInput, setNameInput] = useState({});
   const [locationInput, setLocationInput] = useState({});
+  const [dateRange, setDateRange] = useState([null, null]);
+  const [activeEventId, setActiveEventId] = useState(null);
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -74,6 +87,8 @@ const EventsPage = () => {
   const menuBg = useColorModeValue('white', 'gray.700');
   const menuHoverBg = useColorModeValue('gray.100', 'gray.600');
   const rowHoverBg = useColorModeValue('gray.50', 'gray.600');
+  const headingColor = useColorModeValue('gray.800', 'white');
+
   const fetchEvents = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -202,6 +217,27 @@ const EventsPage = () => {
     fetchContinentOptions();
     fetchStaffingOptions();
   }, [fetchEvents, fetchCustomStatusOptions, fetchActivationTypeOptions, fetchPartnerOptions, fetchContinentOptions, fetchStaffingOptions]);
+
+  const handleDateChange = (dates) => {
+    const [start, end] = dates;
+    setDateRange([start, end]);
+    if (start && end) {
+      updateEventDate(activeEventId, start, end);
+    }
+  };
+
+  const updateEventDate = async (eventId, startDate, endDate) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      await axios.put(`/api/events/${eventId}`, { start_date: startDate.toISOString(), end_date: endDate.toISOString() }, { headers });
+      toast({ title: "Date Updated.", description: "Event date has been successfully updated.", status: "success", duration: 3000, isClosable: true });
+      fetchEvents();
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update event date.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
 
   const updateEventStatus = async (eventId, newStatus) => {
     try {
@@ -416,6 +452,21 @@ const EventsPage = () => {
     return `${formattedStartDate} - ${formattedEndDate}`;
   };
 
+  const calculateProgress = (startDate, endDate) => {
+    const start = new Date(startDate).getTime();
+    const end = new Date(endDate).getTime();
+    const now = new Date().getTime();
+
+    if (now < start) return 0;
+    if (now > end) return 100;
+
+    const totalDuration = end - start;
+    if (totalDuration === 0) return 100;
+    const elapsedDuration = now - start;
+
+    return (elapsedDuration / totalDuration) * 100;
+  };
+
   const capitalizeStatus = (status) => {
     if (!status) return '';
     return status.split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
@@ -433,7 +484,7 @@ const EventsPage = () => {
     <Box p={{ base: 4, md: 8 }} bg={pageBg} minH="100vh">
       <VStack spacing={{ base: 6, md: 8 }} align="stretch">
         <HStack justifyContent="space-between" alignItems="center" flexWrap="wrap">
-          <Heading size={{ base: 'lg', md: 'xl' }} fontWeight="bold" color="gray.800">Events Dashboard</Heading>
+          <Heading size={{ base: 'lg', md: 'xl' }} fontWeight="bold" color={headingColor}>Events Dashboard</Heading>
           <HStack spacing={4} mt={{ base: 4, md: 0 }}>
             <Button
               colorScheme="blue"
@@ -516,10 +567,9 @@ const EventsPage = () => {
                   filteredEvents.map(event => (
                     <Tr
                       key={event.event_id}
-                      cursor="pointer"
                       _hover={{ bg: rowHoverBg }}
                     >
-                      <Td>
+                      <Td onClick={() => handleEventClick(event.event_id)} cursor="pointer">
                         <VStack align="start" spacing={0}>
                           <Input
                             value={nameInput[event.event_id] || ''}
@@ -543,7 +593,51 @@ const EventsPage = () => {
                           />
                         </VStack>
                       </Td>
-                      <Td onClick={() => handleEventClick(event.event_id)}>{formatDateRange(event.start_date, event.end_date)}</Td>
+                      <Td>
+                        <Popover
+                          onOpen={() => {
+                            setActiveEventId(event.event_id);
+                            setDateRange([new Date(event.start_date), new Date(event.end_date)]);
+                          }}
+                        >
+                          <PopoverTrigger>
+                            <Box cursor="pointer">
+                              <VStack align="start" spacing={1} w="100%">
+                                <HStack>
+                                  <Icon as={CalendarIcon} color="gray.500" />
+                                  <Text fontSize="sm" fontWeight="bold" noOfLines={1}>
+                                    {formatDateRange(event.start_date, event.end_date)}
+                                  </Text>
+                                </HStack>
+                                <Progress
+                                  value={calculateProgress(event.start_date, event.end_date)}
+                                  size="xs"
+                                  colorScheme="blue"
+                                  w="100%"
+                                  borderRadius="md"
+                                />
+                              </VStack>
+                            </Box>
+                          </PopoverTrigger>
+                          <Portal>
+                            <PopoverContent zIndex={9999}>
+                              <PopoverArrow />
+                              <PopoverCloseButton />
+                              <PopoverBody>
+                                <DatePicker
+                                  selected={dateRange[0]}
+                                  onChange={handleDateChange}
+                                  startDate={dateRange[0]}
+                                  endDate={dateRange[1]}
+                                  selectsRange
+                                  inline
+                                  shouldCloseOnSelect={false}
+                                />
+                              </PopoverBody>
+                            </PopoverContent>
+                          </Portal>
+                        </Popover>
+                      </Td>
                       <Td>
                         <Menu>
                           <MenuButton

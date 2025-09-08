@@ -9,15 +9,19 @@ import {
   VStack,
   Link,
   useColorModeValue,
-  Spacer, // Added Spacer for layout
-  Text, // Added Text for welcome message
+  Spacer,
+  Text,
+  useColorMode,
+  IconButton,
 } from '@chakra-ui/react';
-import { jwtDecode } from 'jwt-decode'; // Corrected import for jwt-decode
+import { FaMoon, FaSun } from 'react-icons/fa';
+import { jwtDecode } from 'jwt-decode';
 
 const MainLayout = () => {
   const navigate = useNavigate();
   const [userRole, setUserRole] = useState(null);
-  const [userFullName, setUserFullName] = useState('Guest'); // New state for full name
+  const [userFullName, setUserFullName] = useState('Guest');
+  const { colorMode, toggleColorMode } = useColorMode();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -25,10 +29,9 @@ const MainLayout = () => {
       try {
         const decodedToken = jwtDecode(token);
         setUserRole(decodedToken.user.role);
-        setUserFullName(decodedToken.user.full_name || 'User'); // Get full_name from token
+        setUserFullName(decodedToken.user.full_name || 'User');
       } catch (error) {
         console.error('Failed to decode token:', error);
-        // Handle invalid token, e.g., log out user
         localStorage.removeItem('token');
         navigate('/login');
       }
@@ -37,8 +40,7 @@ const MainLayout = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
-    localStorage.removeItem('userRole'); // Clear user role on logout
-    // Also clear full_name if stored separately in local storage
+    localStorage.removeItem('userRole');
     navigate('/login');
   };
 
@@ -79,7 +81,7 @@ const MainLayout = () => {
               {item.text}
             </Link>
           ))}
-          {userRole === 'admin' && ( // Conditionally render admin links
+          {userRole === 'admin' && (
             <>
               {adminMenuItems.map((item) => (
                 <Link
@@ -101,8 +103,16 @@ const MainLayout = () => {
       {/* Main Content */}
       <Box flex="1" display="flex" flexDirection="column">
         <Flex as="header" p={4} borderBottomWidth="1px" alignItems="center">
-          <Spacer /> {/* Pushes content to the right */}
+          <Spacer />
           <Text mr={4} fontWeight="bold">Welcome, {userFullName} ({userRole})</Text>
+          <IconButton
+            mr={4}
+            onClick={toggleColorMode}
+            icon={colorMode === 'light' ? <FaMoon /> : <FaSun />}
+            isRound={true}
+            size="md"
+            aria-label="Toggle Dark Mode"
+          />
           <Button onClick={handleLogout} colorScheme="red" size="sm">
             Logout
           </Button>
