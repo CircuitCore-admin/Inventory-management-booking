@@ -77,12 +77,20 @@ router.put('/:eventId/allocated-items/:itemId', protect, async (req, res) => {
 // CORRECTED ROUTE: UPDATE AN EXISTING EVENT
 router.put('/:id', protect, authorize('admin', 'management'), async (req, res) => {
   const eventId = req.params.id;
-  const { status, activation_type, partner, continent, staffing } = req.body;
-  
+  const { status, activation_type, partner, continent, staffing, staff_members, name, location } = req.body;
+
   const updateFields = [];
   const queryValues = [];
   let paramCounter = 1;
 
+  if (name !== undefined) {
+    updateFields.push(`name = $${paramCounter++}`);
+    queryValues.push(name);
+  }
+  if (location !== undefined) {
+    updateFields.push(`location = $${paramCounter++}`);
+    queryValues.push(location);
+  }
   if (status !== undefined) {
     updateFields.push(`status = $${paramCounter++}`);
     queryValues.push(status);
@@ -103,6 +111,10 @@ router.put('/:id', protect, authorize('admin', 'management'), async (req, res) =
     updateFields.push(`staffing = $${paramCounter++}`);
     queryValues.push(staffing);
   }
+  if (staff_members !== undefined) {
+    updateFields.push(`staff_members = $${paramCounter++}`);
+    queryValues.push(staff_members);
+  }
   
   if (updateFields.length === 0) {
     return res.status(400).json({ msg: 'No fields to update.' });
@@ -122,7 +134,6 @@ router.put('/:id', protect, authorize('admin', 'management'), async (req, res) =
       return res.status(404).json({ msg: 'Event not found' });
     }
 
-    // Corrected audit log message
     const logMessage = `Updated event (ID: ${eventId}).`;
     await logAction(req.user.id, 'event_updated', logMessage);
 

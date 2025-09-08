@@ -1,3 +1,4 @@
+// williams-portal/src/pages/EventsPage.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -62,6 +63,9 @@ const EventsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('list');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [staffMembersInput, setStaffMembersInput] = useState({});
+  const [nameInput, setNameInput] = useState({});
+  const [locationInput, setLocationInput] = useState({});
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -80,6 +84,17 @@ const EventsPage = () => {
       }
       const res = await axios.get(url, { headers });
       setEvents(res.data);
+      const initialStaffMembers = {};
+      const initialNames = {};
+      const initialLocations = {};
+      res.data.forEach(event => {
+        initialStaffMembers[event.event_id] = event.staff_members || '';
+        initialNames[event.event_id] = event.name || '';
+        initialLocations[event.event_id] = event.location || '';
+      });
+      setStaffMembersInput(initialStaffMembers);
+      setNameInput(initialNames);
+      setLocationInput(initialLocations);
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch events', error);
@@ -192,9 +207,7 @@ const EventsPage = () => {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
-      const eventToUpdate = events.find(event => event.event_id === eventId);
-      if (!eventToUpdate) return;
-      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, status: newStatus }, { headers });
+      await axios.put(`/api/events/${eventId}`, { status: newStatus }, { headers });
       toast({ title: "Status Updated.", description: `Event status changed to ${newStatus}.`, status: "success", duration: 3000, isClosable: true });
       fetchEvents();
     } catch (error) {
@@ -207,9 +220,7 @@ const EventsPage = () => {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
-      const eventToUpdate = events.find(event => event.event_id === eventId);
-      if (!eventToUpdate) return;
-      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, activation_type: newType }, { headers });
+      await axios.put(`/api/events/${eventId}`, { activation_type: newType }, { headers });
       toast({ title: "Activation Type Updated.", description: `Event activation type changed to ${newType}.`, status: "success", duration: 3000, isClosable: true });
       fetchEvents();
     } catch (error) {
@@ -222,9 +233,7 @@ const EventsPage = () => {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
-      const eventToUpdate = events.find(event => event.event_id === eventId);
-      if (!eventToUpdate) return;
-      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, partner: newPartner }, { headers });
+      await axios.put(`/api/events/${eventId}`, { partner: newPartner }, { headers });
       toast({ title: "Partner Updated.", description: `Event partner changed to ${newPartner}.`, status: "success", duration: 3000, isClosable: true });
       fetchEvents();
     } catch (error) {
@@ -237,9 +246,7 @@ const EventsPage = () => {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
-      const eventToUpdate = events.find(event => event.event_id === eventId);
-      if (!eventToUpdate) return;
-      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, continent: newContinent }, { headers });
+      await axios.put(`/api/events/${eventId}`, { continent: newContinent }, { headers });
       toast({ title: "Continent Updated.", description: `Event continent changed to ${newContinent}.`, status: "success", duration: 3000, isClosable: true });
       fetchEvents();
     } catch (error) {
@@ -252,14 +259,70 @@ const EventsPage = () => {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'x-auth-token': token };
-      const eventToUpdate = events.find(event => event.event_id === eventId);
-      if (!eventToUpdate) return;
-      await axios.put(`/api/events/${eventId}`, { ...eventToUpdate, staffing: newStaffing }, { headers });
+      await axios.put(`/api/events/${eventId}`, { staffing: newStaffing }, { headers });
       toast({ title: "Staffing Updated.", description: `Event staffing changed to ${newStaffing}.`, status: "success", duration: 3000, isClosable: true });
       fetchEvents();
     } catch (error) {
       console.error('Update Failed:', error);
       toast({ title: "Update Failed.", description: "Could not update event staffing.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
+
+  const updateEventStaffMembers = async (eventId, newStaffMembers) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      await axios.put(`/api/events/${eventId}`, { staff_members: newStaffMembers }, { headers });
+      fetchEvents();
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update staff members.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
+
+  const handleNameChange = (eventId, value) => {
+    setNameInput(prev => ({
+      ...prev,
+      [eventId]: value
+    }));
+  };
+
+  const handleLocationChange = (eventId, value) => {
+    setLocationInput(prev => ({
+      ...prev,
+      [eventId]: value
+    }));
+  };
+
+  const handleNameBlur = (eventId, value) => {
+    updateEventName(eventId, value);
+  };
+
+  const handleLocationBlur = (eventId, value) => {
+    updateEventLocation(eventId, value);
+  };
+
+  const updateEventName = async (eventId, newName) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      await axios.put(`/api/events/${eventId}`, { name: newName }, { headers });
+      fetchEvents();
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update event name.", status: "error", duration: 5000, isClosable: true });
+    }
+  };
+
+  const updateEventLocation = async (eventId, newLocation) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'x-auth-token': token };
+      await axios.put(`/api/events/${eventId}`, { location: newLocation }, { headers });
+      fetchEvents();
+    } catch (error) {
+      console.error('Update Failed:', error);
+      toast({ title: "Update Failed.", description: "Could not update event location.", status: "error", duration: 5000, isClosable: true });
     }
   };
 
@@ -430,17 +493,34 @@ const EventsPage = () => {
                   filteredEvents.map(event => (
                     <Tr
                       key={event.event_id}
-                      onClick={() => handleEventClick(event.event_id)}
                       cursor="pointer"
                       _hover={{ bg: rowHoverBg }}
                     >
-                      <Td>
+                      <Td onClick={() => handleEventClick(event.event_id)}>
                         <VStack align="start" spacing={0}>
-                          <Text fontWeight="bold">{event.name}</Text>
-                          <Text fontSize="sm" color="gray.500">{event.location}</Text>
+                          <Input
+                            value={nameInput[event.event_id] || ''}
+                            onChange={(e) => handleNameChange(event.event_id, e.target.value)}
+                            onBlur={(e) => handleNameBlur(event.event_id, e.target.value)}
+                            placeholder="Event Name"
+                            size="sm"
+                            fontWeight="bold"
+                            variant="unstyled" // Removed borders
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <Input
+                            value={locationInput[event.event_id] || ''}
+                            onChange={(e) => handleLocationChange(event.event_id, e.target.value)}
+                            onBlur={(e) => handleLocationBlur(event.event_id, e.target.value)}
+                            placeholder="Location"
+                            size="sm"
+                            color="gray.500"
+                            variant="unstyled" // Removed borders
+                            onClick={(e) => e.stopPropagation()}
+                          />
                         </VStack>
                       </Td>
-                      <Td>{formatDateRange(event.start_date, event.end_date)}</Td>
+                      <Td onClick={() => handleEventClick(event.event_id)}>{formatDateRange(event.start_date, event.end_date)}</Td>
                       <Td>
                         <Menu>
                           <MenuButton
@@ -641,7 +721,16 @@ const EventsPage = () => {
                           </Portal>
                         </Menu>
                       </Td>
-                      <Td>{/* TODO: Fetch and display staff members */}</Td>
+                      <Td>
+                        <Input
+                          value={staffMembersInput[event.event_id] || ''}
+                          onChange={(e) => setStaffMembersInput(prev => ({ ...prev, [event.event_id]: e.target.value }))}
+                          onBlur={(e) => updateEventStaffMembers(event.event_id, e.target.value)}
+                          placeholder="Enter Staff Members"
+                          size="sm"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </Td>
                       <Td>
                         <Menu>
                           <MenuButton
