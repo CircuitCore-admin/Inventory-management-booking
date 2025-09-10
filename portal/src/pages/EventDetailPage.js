@@ -1,4 +1,4 @@
-// src/pages/EventDetailPage.js
+// portal/src/pages/EventDetailPage.js
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -24,9 +24,17 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   IconButton,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  Textarea
 } from '@chakra-ui/react';
 import { Table, Thead, Tbody, Tr, Th, Td, TableContainer } from '@chakra-ui/table';
-import { FaEdit, FaTrash } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaTimes, FaFileAlt, FaComment, FaPaperclip } from 'react-icons/fa';
 import ItemAllocationModal from '../components/ItemAllocationModal';
 
 const EventDetailPage = () => {
@@ -34,10 +42,16 @@ const EventDetailPage = () => {
   const navigate = useNavigate();
   const [event, setEvent] = useState(null);
   const [bookedItems, setBookedItems] = useState([]);
-  const [timeline, setTimeline] = useState([]); // State for timeline data
+  const [timeline, setTimeline] = useState([]);
+  const [updates, setUpdates] = useState([]); // MODIFIED: Single state for all updates
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
+  const [newUpdateText, setNewUpdateText] = useState(''); // MODIFIED: Single state for text input
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewContent, setPreviewContent] = useState(null);
+  const [previewType, setPreviewType] = useState('');
+  const { isOpen: isPreviewOpen, onOpen: onOpenPreview, onClose: onClosePreview } = useDisclosure();
   const toast = useToast();
 
   const { isOpen: isDeleteAlertOpen, onOpen: onOpenDeleteAlert, onClose: onCloseDeleteAlert } = useDisclosure();
@@ -64,6 +78,7 @@ const EventDetailPage = () => {
       setFormData(eventRes.data);
       setBookedItems(bookedItemsRes.data);
       setTimeline(timelineRes.data);
+      setUpdates(eventRes.data.updates); // MODIFIED: Fetch from the unified 'updates'
     } catch (error) {
       console.error('Failed to fetch event details:', error);
       toast({
@@ -246,6 +261,87 @@ const EventDetailPage = () => {
     }
   };
 
+// --- NEW UNIFIED FUNCTION ---
+const handleAddUpdate = async () => {
+    if (!newUpdateText.trim() && !selectedFile) {
+        toast({
+            title: 'No content to add.',
+            description: 'Please write a note or select a file.',
+            status: 'warning',
+            duration: 3000,
+            isClosable: true,
+        });
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('note_text', newUpdateText);
+    if (selectedFile) {
+        formData.append('document', selectedFile);
+    }
+
+    try {
+        const token = localStorage.getItem('token');
+        const headers = { 'x-auth-token': token, 'Content-Type': 'multipart/form-data' };
+        await axios.post(
+            `/api/events/${eventId}/updates`,
+            formData,
+            { headers }
+        );
+        setNewUpdateText('');
+        setSelectedFile(null);
+        toast({
+            title: 'Update added.',
+            description: 'Your comment and/or file has been added to the event.',
+            status: 'success',
+            duration: 3000,
+            isClosable: true,
+        });
+        fetchEventDetails();
+    } catch (error) {
+        console.error('Error adding update:', error);
+        toast({
+            title: 'Error',
+            description: 'Failed to add the update.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+        });
+    }
+};
+
+// --- NEW UNIFIED FUNCTION ---
+const handleDeleteUpdate = async (updateId) => {
+    try {
+        const token = localStorage.getItem('token');
+        const headers = { 'x-auth-token': token };
+        await axios.delete(`/api/events/updates/${updateId}`, { headers });
+        toast({
+            title: 'Update deleted.',
+            description: 'The update has been successfully deleted.',
+            status: 'success',
+            duration: 3000,
+            isClosable: true,
+        });
+        fetchEventDetails();
+    } catch (error) {
+        console.error('Error deleting update:', error);
+        toast({
+            title: 'Error',
+            description: 'Failed to delete the update.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+        });
+    }
+};
+
+const openQuickView = (update) => {
+    setPreviewContent(update.file_path);
+    setPreviewType(update.file_type);
+    onOpenPreview();
+};
+
   if (loading) {
     return <Box display="flex" justifyContent="center" alignItems="center" height="100%"><Spinner size="xl" /></Box>;
   }
@@ -406,6 +502,55 @@ const EventDetailPage = () => {
           </Tbody>
         </Table>
       </TableContainer>
+      
+      <Divider my={6} />
+      
+      <VStack align="stretch" spacing={4}>
+        <Heading size="lg">Event Updates 🚀</Heading>
+        <Box>
+            <Textarea
+                placeholder="Add a new comment or attach a file..."
+                value={newUpdateText}
+                onChange={(e) => setNewUpdateText(e.target.value)}
+                mb={2}
+            />
+            <HStack justifyContent="space-between">
+              <Button leftIcon={<FaPaperclip />} as="label" htmlFor="file-upload">
+                Attach File
+              </Button>
+              <Input id="file-upload" type="file" onChange={(e) => setSelectedFile(e.target.files[0])} style={{ display: 'none' }} />
+              {selectedFile && <Text fontSize="sm">{selectedFile.name}</Text>}
+              <Button colorScheme="blue" onClick={handleAddUpdate}>Add Update</Button>
+            </HStack>
+        </Box>
+        <VStack align="stretch" spacing={4} maxH="500px" overflowY="auto">
+            {updates.length > 0 ? (
+                updates.map(update => (
+                    <Box key={update.update_id} p={3} borderWidth="1px" borderRadius="md">
+                        <HStack justifyContent="space-between">
+                            <Text fontWeight="bold">
+                                {update.uploaded_by_full_name}
+                                {update.update_text && !update.file_path && <Text as="span" ml={2}><FaComment /></Text>}
+                                {update.file_path && <Text as="span" ml={2}><FaPaperclip /></Text>}
+                            </Text>
+                            <IconButton icon={<FaTimes />} size="sm" onClick={() => handleDeleteUpdate(update.update_id)} aria-label="Delete update" />
+                        </HStack>
+                        {update.update_text && <Text mt={2}>{update.update_text}</Text>}
+                        {update.file_path && (
+                            <Button variant="link" onClick={() => openQuickView(update)} leftIcon={<FaFileAlt />} mt={2}>
+                                {update.file_name} ({update.file_type})
+                            </Button>
+                        )}
+                        <Text fontSize="sm" color="gray.500" mt={1}>
+                            {new Date(update.uploaded_at).toLocaleString()}
+                        </Text>
+                    </Box>
+                ))
+            ) : (
+                <Text>No updates for this event yet.</Text>
+            )}
+        </VStack>
+      </VStack>
 
       <Divider my={6} />
 
@@ -439,7 +584,6 @@ const EventDetailPage = () => {
         />
       )}
 
-      {/* Confirmation Dialog for Deleting an Event */}
       <AlertDialog
         isOpen={isDeleteAlertOpen}
         leastDestructiveRef={cancelRef}
@@ -467,7 +611,6 @@ const EventDetailPage = () => {
         </AlertDialogOverlay>
       </AlertDialog>
 
-      {/* Confirmation Dialog for Removing an Item */}
       <AlertDialog
         isOpen={isRemoveAlertOpen}
         leastDestructiveRef={cancelRef}
@@ -494,6 +637,21 @@ const EventDetailPage = () => {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
+
+      <Modal isOpen={isPreviewOpen} onClose={onClosePreview} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Document Quickview</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {previewType.includes('image') && <img src={previewContent} alt="Document Preview" />}
+            {previewType === 'application/pdf' && <iframe src={previewContent} style={{ width: '100%', height: '75vh' }} title="PDF Preview" />}
+          </ModalBody>
+          <ModalFooter>
+            <Button onClick={onClosePreview}>Close</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };

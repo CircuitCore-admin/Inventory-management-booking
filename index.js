@@ -5,10 +5,6 @@ const app = express();
 const path = require('path');
 const cors = require('cors'); // Import cors middleware
 
-// Connect Database (Ensure your db.js handles the connection logic)
-// const db = require('./db');
-// db.query('SELECT 1').then(() => console.log('PostgreSQL connected')).catch(err => console.error('PostgreSQL connection error:', err));
-
 // Init Middleware
 app.use(express.json({ extended: false })); // Body parser for JSON
 app.use(cors()); // Use CORS middleware for cross-origin requests

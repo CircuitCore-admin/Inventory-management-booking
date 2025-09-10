@@ -4,11 +4,26 @@ const router = express.Router();
 const db = require('../db');
 const { protect, adminOnly, authorize } = require('../middleware/auth');
 const { logAction } = require('../services/auditLog');
+const multer = require('multer');
+const path = require('path');
+const eventController = require('../controllers/eventController');
+const fs = require('fs');
+
+// Configure Multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'public/uploads/events');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
 
 // --- GET ALL EVENTS ---
 router.get('/', protect, async (req, res) => {
   try {
-    // Corrected: Removed the WHERE clause to fetch all events regardless of status
     const { rows } = await db.query("SELECT * FROM events ORDER BY start_date DESC");
     res.json(rows);
   } catch (err) {
@@ -17,22 +32,30 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-// --- GET A SINGLE EVENT BY ITS ID ---
+// --- GET A SINGLE EVENT BY ITS ID (MODIFIED) ---
 router.get('/:eventId', protect, async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT * FROM events WHERE event_id = $1', [req.params.eventId]);
-    if (rows.length === 0) {
+    const eventQuery = 'SELECT * FROM events WHERE event_id = $1';
+    const eventResult = await db.query(eventQuery, [req.params.eventId]);
+    if (eventResult.rows.length === 0) {
       return res.status(404).json({ msg: 'Event not found' });
     }
-    res.json(rows[0]);
+    const event = eventResult.rows[0];
+    const updates = await eventController.getUpdatesForEvent(req.params.eventId); // MODIFIED
+    res.json({ ...event, updates });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
 
+// --- NEW UNIFIED ROUTE: Add a comment or document ---
+router.post('/:eventId/updates', protect, upload.single('document'), eventController.addEventUpdate);
+
+// --- NEW UNIFIED ROUTE: Delete a comment or document ---
+router.delete('/updates/:updateId', protect, eventController.deleteEventUpdate);
+
 // CORRECTED ROUTE: GET all allocated items for a specific event
-// This now returns both the integer item_id and the unique_identifier string.
 router.get('/:eventId/allocated-items', protect, async (req, res) => {
   try {
     const query = `
@@ -51,7 +74,6 @@ router.get('/:eventId/allocated-items', protect, async (req, res) => {
 });
 
 // NEW ROUTE: PUT /api/events/:eventId/allocated-items/:itemId
-// This route updates an allocated item's details, such as pickup_location.
 router.put('/:eventId/allocated-items/:itemId', protect, async (req, res) => {
     const { eventId, itemId } = req.params;
     const { pickup_location } = req.body;
@@ -152,22 +174,7 @@ router.put('/:id', protect, authorize('admin', 'management'), async (req, res) =
   }
 });
 
-// --- GET A SINGLE EVENT BY ITS ID ---
-router.get('/:eventId', protect, async (req, res) => {
-  try {
-    const { rows } = await db.query('SELECT * FROM events WHERE event_id = $1', [req.params.eventId]);
-    if (rows.length === 0) {
-      return res.status(404).json({ msg: 'Event not found' });
-    }
-    res.json(rows[0]);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
-});
-
 // CORRECTED ROUTE: DELETE /api/events/:eventId/allocated-items/:itemId
-// This route deallocates a specific item from an event.
 router.delete('/:eventId/allocated-items/:itemId', protect, async (req, res) => {
   const { eventId, itemId } = req.params;
   try {
@@ -238,7 +245,6 @@ router.post('/:eventId/allocate-items', protect, async (req, res) => {
 });
 
 // CORRECTED ROUTE: POST /api/events
-// This route now correctly handles the 'notes' field.
 router.post('/', protect, async (req, res) => {
     const { name, location, start_date, end_date, notes } = req.body;
     try {
