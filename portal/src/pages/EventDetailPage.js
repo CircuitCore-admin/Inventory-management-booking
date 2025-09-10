@@ -371,10 +371,34 @@ const handleDeleteUpdate = async (updateId) => {
     }
 };
 
-const openQuickView = (update) => {
-    setPreviewContent(update.file_path);
-    setPreviewType(update.file_type);
-    onOpenPreview();
+const openQuickView = async (update) => {
+    try {
+      // Determine the backend URL. In development, it's on a different port.
+      const backendUrl = process.env.NODE_ENV === 'production' 
+          ? window.location.origin 
+          : 'http://localhost:3001';
+
+      // The file_path from the DB might have backslashes on Windows.
+      // We replace them with forward slashes for URL compatibility.
+      const normalizedPath = update.file_path.replace(/\\/g, '/');
+
+      // Construct the full, absolute URL to the file on the backend.
+      const fileUrl = `${backendUrl}/${normalizedPath}`;
+      
+      setPreviewContent(fileUrl);
+      setPreviewType(update.file_type);
+      onOpenPreview();
+
+    } catch (error) {
+        console.error('Error opening quick view:', error);
+        toast({
+            title: 'Error',
+            description: 'Could not load file for preview.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+        });
+    }
 };
 
 const renderUpdates = (updates, parentUpdate = null) => {
@@ -708,7 +732,7 @@ const renderUpdates = (updates, parentUpdate = null) => {
           <ModalHeader>Document Quickview</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            {previewType.includes('image') && <img src={previewContent} alt="Document Preview" />}
+            {previewType.includes('image') && <img src={previewContent} alt="Document Preview" style={{ width: '100%' }} />}
             {previewType === 'application/pdf' && <iframe src={previewContent} style={{ width: '100%', height: '75vh' }} title="PDF Preview" />}
           </ModalBody>
           <ModalFooter>
