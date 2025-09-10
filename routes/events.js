@@ -41,7 +41,7 @@ router.get('/:eventId', protect, async (req, res) => {
       return res.status(404).json({ msg: 'Event not found' });
     }
     const event = eventResult.rows[0];
-    const updates = await eventController.getUpdatesForEvent(req.params.eventId); // MODIFIED
+    const updates = await eventController.getUpdatesForEvent(req.params.eventId);
     res.json({ ...event, updates });
   } catch (err) {
     console.error(err.message);
@@ -49,8 +49,11 @@ router.get('/:eventId', protect, async (req, res) => {
   }
 });
 
-// --- NEW UNIFIED ROUTE: Add a comment or document ---
+// --- MODIFIED UNIFIED ROUTE: Add a comment or document or reply ---
 router.post('/:eventId/updates', protect, upload.single('document'), eventController.addEventUpdate);
+
+// --- NEW ROUTE: Add or remove a reaction to an update ---
+router.post('/updates/:updateId/react', protect, eventController.toggleReaction);
 
 // --- NEW UNIFIED ROUTE: Delete a comment or document ---
 router.delete('/updates/:updateId', protect, eventController.deleteEventUpdate);

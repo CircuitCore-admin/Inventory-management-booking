@@ -2,19 +2,25 @@
 const pool = require('../db');
 const { logAction } = require('../services/auditLog');
 const fs = require('fs');
+const path = require('path');
 
-// --- MODIFIED: Fetch Updates for a specific event ---
+// --- MODIFIED: Fetch Updates and Reactions for a specific event ---
 const getUpdatesForEvent = async (eventId) => {
     const updatesQuery = `
         SELECT
             eu.*,
-            u.full_name AS uploaded_by_full_name
+            u.full_name AS uploaded_by_full_name,
+            COUNT(ur.reaction_id) AS reaction_count
         FROM
             event_updates eu
         LEFT JOIN
             users u ON eu.uploaded_by_user_id = u.user_id
+        LEFT JOIN
+            update_reactions ur ON eu.update_id = ur.update_id
         WHERE
             eu.event_id = $1
+        GROUP BY
+            eu.update_id, u.full_name
         ORDER BY
             eu.uploaded_at DESC
     `;
@@ -22,14 +28,13 @@ const getUpdatesForEvent = async (eventId) => {
     return updatesResult.rows;
 };
 
-// --- NEW UNIFIED FUNCTION: Add a new update (note or document) to an event ---
+// --- MODIFIED UNIFIED FUNCTION: Add a new update (note or document) or a reply ---
 const addEventUpdate = async (req, res) => {
     const { eventId } = req.params;
-    const { note_text } = req.body;
+    const { note_text, parent_id } = req.body;
     const userId = req.user.id;
     const file = req.file;
 
-    // Check that at least a note or a file is present
     if (!note_text && !file) {
         return res.status(400).json({ msg: 'Note text or a file is required.' });
     }
@@ -46,14 +51,47 @@ const addEventUpdate = async (req, res) => {
         }
 
         const newUpdate = await pool.query(
-            `INSERT INTO event_updates (event_id, update_text, file_name, file_path, file_type, uploaded_by_user_id)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-            [eventId, note_text, fileName, filePath, fileType, userId]
+            `INSERT INTO event_updates (event_id, update_text, file_name, file_path, file_type, uploaded_by_user_id, parent_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            [eventId, note_text, fileName, filePath, fileType, userId, parent_id]
         );
 
         res.status(201).json(newUpdate.rows[0]);
     } catch (error) {
         console.error('Error adding event update:', error.message);
+        res.status(500).json({ msg: 'Server error' });
+    }
+};
+
+// --- NEW FUNCTION: Add or remove a reaction to an update ---
+const toggleReaction = async (req, res) => {
+    const { updateId } = req.params;
+    const { reaction_type } = req.body;
+    const userId = req.user.id;
+
+    try {
+        const checkQuery = await pool.query(
+            'SELECT reaction_id FROM update_reactions WHERE update_id = $1 AND user_id = $2 AND reaction_type = $3',
+            [updateId, userId, reaction_type]
+        );
+
+        if (checkQuery.rows.length > 0) {
+            // Reaction already exists, so remove it
+            await pool.query(
+                'DELETE FROM update_reactions WHERE update_id = $1 AND user_id = $2 AND reaction_type = $3',
+                [updateId, userId, reaction_type]
+            );
+            res.status(200).json({ msg: 'Reaction removed' });
+        } else {
+            // Reaction does not exist, so add it
+            await pool.query(
+                'INSERT INTO update_reactions (update_id, user_id, reaction_type) VALUES ($1, $2, $3)',
+                [updateId, userId, reaction_type]
+            );
+            res.status(201).json({ msg: 'Reaction added' });
+        }
+    } catch (error) {
+        console.error('Error toggling reaction:', error.message);
         res.status(500).json({ msg: 'Server error' });
     }
 };
@@ -91,4 +129,5 @@ module.exports = {
     getUpdatesForEvent,
     addEventUpdate,
     deleteEventUpdate,
+    toggleReaction,
 };
