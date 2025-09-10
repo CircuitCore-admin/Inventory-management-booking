@@ -34,8 +34,39 @@ import {
   Textarea
 } from '@chakra-ui/react';
 import { Table, Thead, Tbody, Tr, Th, Td, TableContainer } from '@chakra-ui/table';
-import { FaEdit, FaTrash, FaTimes, FaFileAlt, FaComment, FaPaperclip } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaTimes, FaFileAlt, FaComment, FaPaperclip, FaReply } from 'react-icons/fa';
 import ItemAllocationModal from '../components/ItemAllocationModal';
+
+const ReplyBox = ({ update, onAddUpdate, onCancel }) => {
+    const [replyText, setReplyText] = useState('');
+    const [selectedFile, setSelectedFile] = useState(null);
+
+    const handleFileChange = (e) => {
+        setSelectedFile(e.target.files[0]);
+    };
+
+    return (
+        <Box mt={4}>
+            <Textarea
+                placeholder={`Replying to ${update.uploaded_by_full_name}...`}
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                mb={2}
+            />
+            <HStack justifyContent="space-between">
+                <Button leftIcon={<FaPaperclip />} size="sm" as="label" htmlFor={`file-upload-${update.update_id}`}>
+                    Attach
+                </Button>
+                <Input id={`file-upload-${update.update_id}`} type="file" onChange={handleFileChange} style={{ display: 'none' }} />
+                <HStack flexGrow={1} justifyContent="flex-end">
+                  <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
+                  <Button size="sm" colorScheme="blue" onClick={() => onAddUpdate(replyText, update.update_id, selectedFile)}>Reply</Button>
+                </HStack>
+            </HStack>
+            {selectedFile && <Text fontSize="xs" color="gray.500" mt={1}>{selectedFile.name}</Text>}
+        </Box>
+    );
+};
 
 const EventDetailPage = () => {
   const { eventId } = useParams();
@@ -43,14 +74,15 @@ const EventDetailPage = () => {
   const [event, setEvent] = useState(null);
   const [bookedItems, setBookedItems] = useState([]);
   const [timeline, setTimeline] = useState([]);
-  const [updates, setUpdates] = useState([]); // MODIFIED: Single state for all updates
+  const [updates, setUpdates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
-  const [newUpdateText, setNewUpdateText] = useState(''); // MODIFIED: Single state for text input
+  const [newUpdateText, setNewUpdateText] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewContent, setPreviewContent] = useState(null);
   const [previewType, setPreviewType] = useState('');
+  const [replyingTo, setReplyingTo] = useState(null);
   const { isOpen: isPreviewOpen, onOpen: onOpenPreview, onClose: onClosePreview } = useDisclosure();
   const toast = useToast();
 
@@ -78,7 +110,7 @@ const EventDetailPage = () => {
       setFormData(eventRes.data);
       setBookedItems(bookedItemsRes.data);
       setTimeline(timelineRes.data);
-      setUpdates(eventRes.data.updates); // MODIFIED: Fetch from the unified 'updates'
+      setUpdates(eventRes.data.updates);
     } catch (error) {
       console.error('Failed to fetch event details:', error);
       toast({
@@ -261,9 +293,8 @@ const EventDetailPage = () => {
     }
   };
 
-// --- NEW UNIFIED FUNCTION ---
-const handleAddUpdate = async () => {
-    if (!newUpdateText.trim() && !selectedFile) {
+const handleAddUpdate = async (text, parentId = null, file = null) => {
+    if (!text.trim() && !file) {
         toast({
             title: 'No content to add.',
             description: 'Please write a note or select a file.',
@@ -275,10 +306,14 @@ const handleAddUpdate = async () => {
     }
 
     const formData = new FormData();
-    formData.append('note_text', newUpdateText);
-    if (selectedFile) {
-        formData.append('document', selectedFile);
+    formData.append('note_text', text);
+    if (file) {
+        formData.append('document', file);
     }
+    if (parentId) {
+        formData.append('parent_id', parentId);
+    }
+
 
     try {
         const token = localStorage.getItem('token');
@@ -290,6 +325,7 @@ const handleAddUpdate = async () => {
         );
         setNewUpdateText('');
         setSelectedFile(null);
+        setReplyingTo(null);
         toast({
             title: 'Update added.',
             description: 'Your comment and/or file has been added to the event.',
@@ -310,7 +346,6 @@ const handleAddUpdate = async () => {
     }
 };
 
-// --- NEW UNIFIED FUNCTION ---
 const handleDeleteUpdate = async (updateId) => {
     try {
         const token = localStorage.getItem('token');
@@ -341,6 +376,55 @@ const openQuickView = (update) => {
     setPreviewType(update.file_type);
     onOpenPreview();
 };
+
+const renderUpdates = (updates, parentUpdate = null) => {
+    return updates.map(update => {
+        return (
+            <Box key={update.update_id} pt={4}>
+                <Box p={3} borderWidth="1px" borderRadius="md">
+                    <HStack justifyContent="space-between">
+                        <Text fontWeight="bold">
+                            {update.uploaded_by_full_name}
+                            {update.update_text && !update.file_path && <Text as="span" ml={2}><FaComment /></Text>}
+                            {update.file_path && <Text as="span" ml={2}><FaPaperclip /></Text>}
+                        </Text>
+                        <div>
+                            <IconButton icon={<FaReply />} size="sm" onClick={() => setReplyingTo(update.update_id)} aria-label="Reply to update" mr={2} />
+                            <IconButton icon={<FaTimes />} size="sm" onClick={() => handleDeleteUpdate(update.update_id)} aria-label="Delete update" />
+                        </div>
+                    </HStack>
+                    {parentUpdate && (
+                        <Text fontSize="sm" color="gray.500" mt={2}>
+                            Replying to <strong>@{parentUpdate.uploaded_by_full_name}</strong>
+                        </Text>
+                    )}
+                    {update.update_text && <Text mt={2}>{update.update_text}</Text>}
+                    {update.file_path && (
+                        <Button variant="link" onClick={() => openQuickView(update)} leftIcon={<FaFileAlt />} mt={2}>
+                            {update.file_name} ({update.file_type})
+                        </Button>
+                    )}
+                    <Text fontSize="sm" color="gray.500" mt={1}>
+                        {new Date(update.uploaded_at).toLocaleString()}
+                    </Text>
+                    {replyingTo === update.update_id && (
+                        <ReplyBox
+                            update={update}
+                            onAddUpdate={handleAddUpdate}
+                            onCancel={() => setReplyingTo(null)}
+                        />
+                    )}
+                </Box>
+                {update.replies && update.replies.length > 0 && (
+                    <Box pl={4} borderLeft="2px solid" borderColor="gray.200">
+                        {renderUpdates(update.replies, update)}
+                    </Box>
+                )}
+            </Box>
+        );
+    });
+};
+
 
   if (loading) {
     return <Box display="flex" justifyContent="center" alignItems="center" height="100%"><Spinner size="xl" /></Box>;
@@ -520,32 +604,12 @@ const openQuickView = (update) => {
               </Button>
               <Input id="file-upload" type="file" onChange={(e) => setSelectedFile(e.target.files[0])} style={{ display: 'none' }} />
               {selectedFile && <Text fontSize="sm">{selectedFile.name}</Text>}
-              <Button colorScheme="blue" onClick={handleAddUpdate}>Add Update</Button>
+              <Button colorScheme="blue" onClick={() => handleAddUpdate(newUpdateText, null, selectedFile)}>Add Update</Button>
             </HStack>
         </Box>
         <VStack align="stretch" spacing={4} maxH="500px" overflowY="auto">
             {updates.length > 0 ? (
-                updates.map(update => (
-                    <Box key={update.update_id} p={3} borderWidth="1px" borderRadius="md">
-                        <HStack justifyContent="space-between">
-                            <Text fontWeight="bold">
-                                {update.uploaded_by_full_name}
-                                {update.update_text && !update.file_path && <Text as="span" ml={2}><FaComment /></Text>}
-                                {update.file_path && <Text as="span" ml={2}><FaPaperclip /></Text>}
-                            </Text>
-                            <IconButton icon={<FaTimes />} size="sm" onClick={() => handleDeleteUpdate(update.update_id)} aria-label="Delete update" />
-                        </HStack>
-                        {update.update_text && <Text mt={2}>{update.update_text}</Text>}
-                        {update.file_path && (
-                            <Button variant="link" onClick={() => openQuickView(update)} leftIcon={<FaFileAlt />} mt={2}>
-                                {update.file_name} ({update.file_type})
-                            </Button>
-                        )}
-                        <Text fontSize="sm" color="gray.500" mt={1}>
-                            {new Date(update.uploaded_at).toLocaleString()}
-                        </Text>
-                    </Box>
-                ))
+                renderUpdates(updates)
             ) : (
                 <Text>No updates for this event yet.</Text>
             )}
